@@ -1,11 +1,16 @@
 import { expect } from 'chai';
+import { generateSecret, generateSync } from 'otplib';
 import { createSandbox } from 'sinon';
 
 import { expenseStatus } from '../../../server/constants';
 import * as transferwiseController from '../../../server/controllers/transferwise';
 import { idEncode, IDENTIFIER_TYPES } from '../../../server/graphql/v2/identifiers';
+import cache, { sessionCache } from '../../../server/lib/cache';
 import emailLib from '../../../server/lib/email';
+import { crypto } from '../../../server/lib/encryption';
+import { TwoFactorAuthenticationHeader, TwoFactorMethod } from '../../../server/lib/two-factor-authentication/lib';
 import { PayoutMethodTypes } from '../../../server/models/PayoutMethod';
+import UserTwoFactorMethod from '../../../server/models/UserTwoFactorMethod';
 import transferwise from '../../../server/paymentProviders/transferwise';
 import {
   fakeCollective,
@@ -76,6 +81,10 @@ describe('server/controllers/transferwise', () => {
       },
       remoteUser,
       headers: {},
+      jwtPayload: { sessionId: randStr('session_') },
+      get(name: string) {
+        return this.headers[name.toLowerCase()];
+      },
     };
     res = {
       sendStatus: sandbox.stub(),
@@ -218,5 +227,154 @@ describe('server/controllers/transferwise', () => {
     await expense.reload();
     expect(expense).to.have.property('status', expenseStatus.PROCESSING);
     expect(expense).to.have.nested.property('data.transfer.id', MAX_INT64);
+  });
+
+  describe('2FA', () => {
+    const addTOTPToUser = async user => {
+      const secret = generateSecret({ length: 64 });
+      await UserTwoFactorMethod.create({
+        UserId: user.id,
+        method: TwoFactorMethod.TOTP,
+        name: 'TOTP',
+        data: { secret: crypto.encrypt(secret) },
+      });
+      return secret;
+    };
+
+    beforeEach(async () => {
+      await cache.clear();
+      await sessionCache.clear();
+    });
+
+    it('rejects host admins without 2FA when the host requires 2FA for admins', async () => {
+      await host.update({ data: { ...host.data, policies: { REQUIRE_2FA_FOR_ADMINS: true } } });
+      await transferwiseController.payBatch(req, res);
+
+      expect(res.status.firstCall.firstArg).to.equal(401);
+      expect(res.send.firstCall.firstArg).to.have.property('message', 'Two factor authentication must be configured');
+      expect(payExpensesBatchGroup.called).to.be.false;
+    });
+
+    it('refuses host admins without 2FA when the host has the payouts rolling limit', async () => {
+      await host.update({
+        settings: { ...host.settings, payoutsTwoFactorAuth: { enabled: true, rollingLimit: 500_00 } },
+      });
+      await transferwiseController.payBatch(req, res);
+
+      expect(res.status.firstCall.firstArg).to.equal(403);
+      expect(res.send.firstCall.firstArg).to.equal('Host has two-factor authentication enabled for large payouts.');
+      expect(payExpensesBatchGroup.called).to.be.false;
+    });
+
+    it('refuses a personal token that is not pre-authorized for 2FA with a 403', async () => {
+      await addTOTPToUser(remoteUser);
+      await transferwiseController.payBatch(
+        {
+          ...req,
+          personalToken: { id: 1, scope: ['expenses'], hasScope: () => true, preAuthorize2FA: false },
+        } as any,
+        res as any,
+      );
+
+      expect(res.status.firstCall.firstArg).to.equal(403);
+      expect(res.send.firstCall.firstArg).to.equal('This personal token is not pre-authorized for 2FA');
+      expect(payExpensesBatchGroup.called).to.be.false;
+    });
+
+    describe('with the payouts rolling limit', () => {
+      let secret;
+
+      beforeEach(async () => {
+        await host.update({
+          settings: { ...host.settings, payoutsTwoFactorAuth: { enabled: true, rollingLimit: 500_00 } },
+        });
+        secret = await addTOTPToUser(remoteUser);
+      });
+
+      it('asks for a 2FA code, in the format the frontend uses to prompt for it', async () => {
+        await transferwiseController.payBatch(req, res);
+
+        expect(res.status.firstCall.firstArg).to.equal(401);
+        const body = res.send.firstCall.firstArg;
+        expect(body).to.have.property('message', 'Two-factor authentication required');
+        expect(body.supportedMethods).to.include(TwoFactorMethod.TOTP);
+        expect(payExpensesBatchGroup.called).to.be.false;
+      });
+
+      it('rejects an invalid 2FA code', async () => {
+        req.headers[TwoFactorAuthenticationHeader] = 'totp 000000';
+        await transferwiseController.payBatch(req, res);
+
+        expect(res.status.firstCall.firstArg).to.equal(401);
+        expect(payExpensesBatchGroup.called).to.be.false;
+      });
+
+      it('answers 429 after too many invalid 2FA codes', async () => {
+        req.headers[TwoFactorAuthenticationHeader] = 'totp 000000';
+        for (let i = 0; i < 10; i++) {
+          await transferwiseController.payBatch(req, res);
+        }
+
+        res.status.resetHistory();
+        await transferwiseController.payBatch(req, res);
+        expect(res.status.firstCall.firstArg).to.equal(429);
+        expect(payExpensesBatchGroup.called).to.be.false;
+      });
+
+      it('pays the batch with a valid 2FA code, then asks again once the batch total goes over the limit', async () => {
+        req.headers[TwoFactorAuthenticationHeader] = `totp ${generateSync({ secret })}`;
+        await transferwiseController.payBatch(req, res);
+        expect(res.status.called).to.be.false;
+        expect(payExpensesBatchGroup.calledOnce).to.be.true;
+
+        // Within the rolling limit: no new code needed
+        delete req.headers[TwoFactorAuthenticationHeader];
+        await expense.update({ status: expenseStatus.SCHEDULED_FOR_PAYMENT });
+        await transferwiseController.payBatch(req, res);
+        expect(res.status.called).to.be.false;
+        expect(payExpensesBatchGroup.calledTwice).to.be.true;
+
+        // Over the limit: a new code is required
+        await expense.update({ status: expenseStatus.SCHEDULED_FOR_PAYMENT, amount: 1000_00 });
+        await transferwiseController.payBatch(req, res);
+        expect(res.status.firstCall.firstArg).to.equal(401);
+        expect(res.send.firstCall.firstArg).to.have.property('message', 'Two-factor authentication required');
+        expect(payExpensesBatchGroup.calledTwice).to.be.true;
+      });
+
+      it('keeps counting a batch sent to Wise even if the call fails', async () => {
+        // A 2FA code opens the session: the count starts at 0
+        req.headers[TwoFactorAuthenticationHeader] = `totp ${generateSync({ secret })}`;
+        await transferwiseController.payBatch(req, res);
+        expect(res.status.called).to.be.false;
+        delete req.headers[TwoFactorAuthenticationHeader];
+
+        // Within the session, a 400 batch is counted, then the call to Wise fails. Wise may still have funded it.
+        payExpensesBatchGroup.rejects(new Error('Wise timed out'));
+        await expense.update({ status: expenseStatus.SCHEDULED_FOR_PAYMENT, amount: 400_00 });
+        await transferwiseController.payBatch(req, res);
+        expect(res.status.firstCall.firstArg).to.equal(500);
+
+        // The failed 400 stays counted: another 400 goes over the 500 limit and asks for a new code
+        payExpensesBatchGroup.resolves({ status: 'COMPLETED' });
+        payExpensesBatchGroup.resetHistory();
+        res.status.resetHistory();
+        res.send.resetHistory();
+        await transferwiseController.payBatch(req, res);
+        expect(res.status.firstCall.firstArg).to.equal(401);
+        expect(res.send.firstCall.firstArg).to.have.property('message', 'Two-factor authentication required');
+        expect(payExpensesBatchGroup.called).to.be.false;
+      });
+
+      it('does not ask for a 2FA code again when approving the Wise payment', async () => {
+        req.headers['x-2fa-approval'] = randStr('hash');
+        await expense.update({ data: { ...expense.data, transfer: { id: 1234 }, quote } });
+        await transferwiseController.payBatch(req, res);
+
+        expect(res.status.called).to.be.false;
+        await expense.reload();
+        expect(expense).to.have.property('status', expenseStatus.PROCESSING);
+      });
+    });
   });
 });

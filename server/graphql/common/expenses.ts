@@ -1681,7 +1681,10 @@ const updateExpenseStatusWithLock = async (
     expectedStatus = expense.status,
     // Set when called from `withExpenseLockedForProviderCall`, which holds the processing soft lock itself
     ownsSoftLock = false,
-  }: { expectedStatus?: Expense['status']; ownsSoftLock?: boolean } = {},
+    // Keys to add to `data`, merged into the row read under the lock rather than into `expense.data`, which may be
+    // stale: another request can change `data` while a payment provider is called
+    mergeData = undefined,
+  }: { expectedStatus?: Expense['status']; ownsSoftLock?: boolean; mergeData?: Record<string, unknown> } = {},
 ): Promise<{ expense: Expense; updated: boolean }> => {
   return sequelize.transaction(async transaction => {
     const lockedExpense = await models.Expense.findByPk(expense.id, { lock: true, transaction });
@@ -1695,7 +1698,8 @@ const updateExpenseStatusWithLock = async (
     }
 
     assertExpenseStatusUnchanged(lockedExpense, expectedStatus, { ownsSoftLock });
-    return { expense: await expense.update(values, { transaction }), updated: true };
+    const valuesToWrite = mergeData ? { ...values, data: { ...lockedExpense.data, ...mergeData } } : values;
+    return { expense: await expense.update(valuesToWrite, { transaction }), updated: true };
   });
 };
 
@@ -1863,6 +1867,9 @@ const getExpensePayout2FALimitCacheKey = (userId: number, hostId: number) => `${
 /** A payout that was added to a count of the amount paid, and what it must take back if it does not go through */
 type ExpensePayout2FALimitCount = { countKey: string; amount: number };
 
+/** The amount leaving the host's account in one payout: an expense, or the total of a batch of expenses */
+type PayoutAmount = { amount: number; currency: SupportedCurrency };
+
 /** Locks for the checks of the rolling limit running on this server, by cache key of the admin and host */
 const expensePayout2FALimitLocks = new Map<string, Mutex>();
 
@@ -1885,9 +1892,13 @@ const expensePayout2FALimitLocks = new Map<string, Mutex>();
  *
  * @returns what was counted for this payout, to pass to `releaseExpensePayout2FALimit` if the payment fails
  */
-async function validateExpensePayout2FALimit(req, host, expense): Promise<ExpensePayout2FALimitCount | null> {
+async function validateExpensePayout2FALimit(
+  req,
+  host,
+  payout: PayoutAmount,
+): Promise<ExpensePayout2FALimitCount | null> {
   const lockKey = getExpensePayout2FALimitCacheKey(req.remoteUser.id, host.id);
-  const expenseAmountInHostCurrency = Number(await convertToCurrency(expense.amount, expense.currency, host.currency));
+  const expenseAmountInHostCurrency = Number(await convertToCurrency(payout.amount, payout.currency, host.currency));
 
   // The mutex orders the checks of this server without polling. The Redis lock coordinates them across servers:
   // it expires by itself if a server dies while holding it, well after the time a check can take.
@@ -1895,7 +1906,7 @@ async function validateExpensePayout2FALimit(req, host, expense): Promise<Expens
   expensePayout2FALimitLocks.set(lockKey, mutex);
   try {
     return await mutex.runExclusive(() =>
-      lockUntilResolved(lockKey, () => checkExpensePayout2FALimit(req, host, expense, expenseAmountInHostCurrency), {
+      lockUntilResolved(lockKey, () => checkExpensePayout2FALimit(req, host, payout, expenseAmountInHostCurrency), {
         unlockTimeoutMs: 60 * 1000,
       }),
     );
@@ -1909,7 +1920,7 @@ async function validateExpensePayout2FALimit(req, host, expense): Promise<Expens
 async function checkExpensePayout2FALimit(
   req,
   host,
-  expense,
+  payout: PayoutAmount,
   expenseAmountInHostCurrency: number,
 ): Promise<ExpensePayout2FALimitCount | null> {
   const expensePaidAmountKey = getExpensePayout2FALimitCacheKey(req.remoteUser.id, host.id);
@@ -1939,7 +1950,7 @@ async function checkExpensePayout2FALimit(
 
   try {
     if (!(await twoFactorAuthLib.userHasTwoFactorAuthEnabled(req.remoteUser))) {
-      throw new Error('Host has two-factor authentication enabled for large payouts.');
+      throw new Forbidden('Host has two-factor authentication enabled for large payouts.');
     }
 
     await twoFactorAuthLib.validateRequest(req, {
@@ -1950,8 +1961,8 @@ async function checkExpensePayout2FALimit(
       FromCollectiveId: host.id,
       customData: {
         rollingLimit: {
-          expenseAmount: expense.amount,
-          expenseCurrency: expense.currency,
+          expenseAmount: payout.amount,
+          expenseCurrency: payout.currency,
           expenseAmountInHostCurrency,
           currentPaidExpenseAmount: counted ? newPaidExpenseAmount - expenseAmountInHostCurrency : 0,
           hostPayoutTwoFactorAuthenticationRollingLimit,
@@ -1991,6 +2002,33 @@ async function releaseExpensePayout2FALimit(req, counted: ExpensePayout2FALimitC
     // The amount stays counted, which only means that a 2FA token will be required sooner
     reportErrorToSentry(e, { req, user: req.remoteUser, feature: FEATURE.USE_EXPENSES });
   }
+}
+
+/**
+ * The 2FA check for every step that sends money out of the host's account: paying an expense, scheduling a PayPal
+ * payout (the hourly cron pays it without anyone else involved) and paying a Wise batch.
+ *
+ * - Automated payouts (PayPal, Wise) use the host's rolling limit when it has `payoutsTwoFactorAuth` turned on: a
+ *   fresh token is asked for once the amount paid in the 2FA session goes over the limit.
+ * - Otherwise, the host's `REQUIRE_2FA_FOR_ADMINS` policy applies. `onlyAskOnLogin` is intentional: the second factor
+ *   was already checked at sign-in.
+ *
+ * Keep all payout steps on this helper, so they don't drift apart.
+ *
+ * @returns what was counted towards the rolling limit, to pass to `releaseExpensePayout2FALimit` if the payment fails
+ */
+export async function enforcePayout2FA(
+  req: express.Request,
+  host: Collective,
+  payout: PayoutAmount,
+  { isAutomatedPayout }: { isAutomatedPayout: boolean },
+): Promise<ExpensePayout2FALimitCount | null> {
+  if (isAutomatedPayout && get(host, 'settings.payoutsTwoFactorAuth.enabled', false)) {
+    return validateExpensePayout2FALimit(req, host, payout);
+  }
+
+  await twoFactorAuthLib.enforceForAccount(req, host, { onlyAskOnLogin: true });
+  return null;
 }
 
 export const validateExpenseCustomData = (value: Record<string, unknown> | null): void => {
@@ -2036,34 +2074,52 @@ export const scheduleExpenseForPayment = async (
 
     expense.PayoutMethod = await req.loaders.PayoutMethod.byId.load(expense.PayoutMethodId);
     await checkHasBalanceToPayExpense(host, expense, expense.PayoutMethod);
-    const hostHasPayoutTwoFactorAuthenticationEnabled = get(host, 'settings.payoutsTwoFactorAuth.enabled', false);
-    if (expense.PayoutMethod.type === PayoutMethodTypes.PAYPAL && hostHasPayoutTwoFactorAuthenticationEnabled) {
-      await validateExpensePayout2FALimit(req, host, expense);
-    } else {
-      // Not using rolling limit, but still enforcing 2FA for all admins (same as `payExpense`)
-      await twoFactorAuthLib.enforceForAccount(req, host, { onlyAskOnLogin: true });
+    // Scheduling a PayPal payout is what authorizes it: the hourly cron pays it without anyone else involved. A Wise
+    // payout only moves money when the batch is paid, which counts it towards the rolling limit at that point.
+    const countedTowards2FARollingLimit = await enforcePayout2FA(req, host, expense, {
+      isAutomatedPayout: expense.PayoutMethod.type === PayoutMethodTypes.PAYPAL,
+    });
+
+    let result: Awaited<ReturnType<typeof updateExpenseStatusWithLock>>;
+    try {
+      // If Wise, add expense to a new batch group
+      if (expense.PayoutMethod.type === PayoutMethodTypes.BANK_ACCOUNT) {
+        await checkFeatureAccess(host, FEATURE.TRANSFERWISE, { loaders: req.loaders });
+        await paymentProviders.transferwise.scheduleExpenseForPayment(expense, options.transferDetails, req.remoteUser);
+      }
+      // If PayPal, check if host is connected to PayPal
+      else if (expense.PayoutMethod.type === PayoutMethodTypes.PAYPAL) {
+        await checkFeatureAccess(host, FEATURE.PAYPAL_PAYOUTS, { loaders: req.loaders });
+        await host.getAccountForPaymentProvider(Service.PAYPAL);
+      }
+
+      result = await updateExpenseStatusWithLock(
+        expense,
+        {
+          status: 'SCHEDULED_FOR_PAYMENT',
+          lastEditedById: req.remoteUser.id,
+          onHold: false,
+        },
+        {
+          expectedStatus: statusBeforeScheduling,
+          ownsSoftLock: true,
+          // Recorded in the same write as the status: the PayPal payout cron checks that this admin can still pay
+          mergeData: { scheduledForPaymentByUserId: req.remoteUser.id },
+        },
+      );
+    } catch (error) {
+      // Nothing was scheduled: the amount does not count towards the rolling limit
+      await releaseExpensePayout2FALimit(req, countedTowards2FARollingLimit);
+      throw error;
     }
 
-    // If Wise, add expense to a new batch group
-    if (expense.PayoutMethod.type === PayoutMethodTypes.BANK_ACCOUNT) {
-      await checkFeatureAccess(host, FEATURE.TRANSFERWISE, { loaders: req.loaders });
-      await paymentProviders.transferwise.scheduleExpenseForPayment(expense, options.transferDetails, req.remoteUser);
-    }
-    // If PayPal, check if host is connected to PayPal
-    else if (expense.PayoutMethod.type === PayoutMethodTypes.PAYPAL) {
-      await checkFeatureAccess(host, FEATURE.PAYPAL_PAYOUTS, { loaders: req.loaders });
-      await host.getAccountForPaymentProvider(Service.PAYPAL);
-    }
-
-    const { expense: updatedExpense, updated } = await updateExpenseStatusWithLock(
-      expense,
-      { status: 'SCHEDULED_FOR_PAYMENT', lastEditedById: req.remoteUser.id, onHold: false },
-      { expectedStatus: statusBeforeScheduling, ownsSoftLock: true },
-    );
-    if (updated) {
+    if (result.updated) {
       await expense.createActivity(activities.COLLECTIVE_EXPENSE_SCHEDULED_FOR_PAYMENT, req.remoteUser);
+    } else {
+      // The status changed in the meantime: this request did not schedule anything
+      await releaseExpensePayout2FALimit(req, countedTowards2FARollingLimit);
     }
-    return updatedExpense;
+    return result.expense;
   });
 };
 
@@ -4478,21 +4534,9 @@ export async function payExpense(req: express.Request, args: PayExpenseArgs): Pr
       PayoutMethodTypes.PAYPAL,
       PayoutMethodTypes.BANK_ACCOUNT,
     ].includes(payoutMethodType);
-    const hostHasPayoutTwoFactorAuthenticationEnabled = get(host, 'settings.payoutsTwoFactorAuth.enabled', false);
-    const use2FARollingLimit =
-      isTwoFactorAuthenticationRequiredForPayoutMethod && !forceManual && hostHasPayoutTwoFactorAuthenticationEnabled;
-
-    let countedTowards2FARollingLimit: ExpensePayout2FALimitCount | null = null;
-
-    if (use2FARollingLimit) {
-      countedTowards2FARollingLimit = await validateExpensePayout2FALimit(req, host, expense);
-    } else {
-      // Not using rolling limit, but still enforcing 2FA for all admins
-      // `onlyAskOnLogin` is intentional here: the second factor was already checked at sign-in, and the host's
-      // REQUIRE_2FA_FOR_ADMINS policy is still enforced. Fresh tokens are only asked for PayPal/bank payouts through the
-      // host's opt-in `payoutsTwoFactorAuth` rolling limit above.
-      await twoFactorAuthLib.enforceForAccount(req, host, { onlyAskOnLogin: true });
-    }
+    const countedTowards2FARollingLimit = await enforcePayout2FA(req, host, expense, {
+      isAutomatedPayout: isTwoFactorAuthenticationRequiredForPayoutMethod && !forceManual,
+    });
 
     let balanceAccountingCategory = null;
 
@@ -4596,10 +4640,8 @@ export async function payExpense(req: express.Request, args: PayExpenseArgs): Pr
         });
       }
     } catch (error) {
-      if (use2FARollingLimit) {
-        // The payment failed: its amount does not count towards the rolling limit
-        await releaseExpensePayout2FALimit(req, countedTowards2FARollingLimit);
-      }
+      // The payment failed: its amount does not count towards the rolling limit
+      await releaseExpensePayout2FALimit(req, countedTowards2FARollingLimit);
 
       throw error;
     }

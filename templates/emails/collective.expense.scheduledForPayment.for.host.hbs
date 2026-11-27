@@ -1,0 +1,26 @@
+Subject: PayPal payout scheduled on {{{collective.name}}} - {{currency expense.amount currency=expense.currency}} for {{{escapeForSubject expense.description}}}
+
+{{> header}}
+
+<center>
+  <h3>
+    A PayPal payout to {{payoutMethod.data.email}} was scheduled for payment.
+  </h3>
+  <h2>{{currency expense.amount currency=expense.currency}}</h2>
+  <div><a href="{{permalink expense}}">{{expense.description}}</a></div>
+  <div>Payee: {{fromCollective.name}}</div>
+  <div>Collective: {{collective.name}}</div>
+
+  <p>
+    Scheduled PayPal payouts are sent automatically within the next hour.<br />
+    If you did not expect this payout, unschedule it from the expense page before then.
+  </p>
+
+  <br /><br />
+  <a href="{{permalink expense}}" class="btn">
+    <div>View Expense</div>
+  </a>
+
+</center>
+
+{{> footer}}

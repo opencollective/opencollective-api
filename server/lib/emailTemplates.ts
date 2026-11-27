@@ -32,6 +32,7 @@ export const templateNames = [
   'collective.expense.error.for.host',
   'collective.expense.paid',
   'collective.expense.paid.for.host',
+  'collective.expense.scheduledForPayment.for.host',
   'collective.expense.invite.drafted',
   'collective.expense.missing.receipt',
   'collective.expense.recurring.drafted',

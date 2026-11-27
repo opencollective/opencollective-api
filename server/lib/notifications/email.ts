@@ -16,11 +16,12 @@ import { TransactionTypes } from '../../constants/transactions';
 import models, { Activity, Collective } from '../../models';
 import { CommentType } from '../../models/Comment';
 import { ExpenseStatus } from '../../models/Expense';
+import { PayoutMethodTypes } from '../../models/PayoutMethod';
 import User from '../../models/User';
 import emailLib from '../email';
 import logger from '../logger';
 import { getTransactionPdf } from '../pdf';
-import { reportMessageToSentry } from '../sentry';
+import { reportErrorToSentry, reportMessageToSentry } from '../sentry';
 import { toIsoDateStr } from '../utils';
 
 import { replaceVideosByImagePreviews } from './utils';
@@ -563,6 +564,44 @@ export const notifyByEmail = async (activity: Activity) => {
             template: 'collective.expense.paid.for.host',
           });
         }
+      }
+      break;
+
+    case ActivityTypes.COLLECTIVE_EXPENSE_SCHEDULED_FOR_PAYMENT:
+      // PayPal payouts are sent by the hourly cron without anyone else involved: let the other host admins know, so
+      // that they can unschedule one they did not expect before it goes out
+      if (activity.data.payoutMethod?.type === PayoutMethodTypes.PAYPAL && get(activity, 'data.host.id')) {
+        const template = 'collective.expense.scheduledForPayment.for.host';
+        const host = await models.Collective.findByPk(activity.data.host.id);
+        const admins = host ? await host.getMembersUsers({ role: [roles.ADMIN] }) : [];
+        // A security alert: it does not follow the admins' settings for expense notifications, only its own
+        // unsubscribe link
+        const unsubscribed = await models.Notification.findAll({
+          attributes: ['UserId'],
+          where: {
+            type: template,
+            channel: Channels.EMAIL,
+            active: false,
+            CollectiveId: host?.id ?? null,
+            UserId: admins.map(admin => admin.id),
+          },
+        });
+        const unsubscribedUserIds = unsubscribed.map(notification => notification.UserId);
+        const recipients = admins.filter(user => user.id !== activity.UserId && !unsubscribedUserIds.includes(user.id));
+        // Each admin is sent the alert on their own: an address the mail provider rejects must not stop the others
+        const results = await Promise.allSettled(
+          recipients.map(user =>
+            notify.user(activity, { user, collective: host, template, skipUnsubscribedCheck: true }),
+          ),
+        );
+        results.forEach((result, idx) => {
+          if (result.status === 'rejected') {
+            logger.error(
+              `Could not send the scheduled PayPal payout alert to user ${recipients[idx].id}: ${result.reason?.message}`,
+            );
+            reportErrorToSentry(result.reason, { extra: { activityId: activity.id, UserId: recipients[idx].id } });
+          }
+        });
       }
       break;
 

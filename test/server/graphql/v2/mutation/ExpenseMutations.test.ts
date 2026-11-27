@@ -7813,6 +7813,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
           });
 
           const expense = await fakeApprovedPaypalExpense();
+          await expense.update({ data: { ...expense.data, existingKey: 'kept' } });
           const mutationParams = { expenseId: expense.id, action: 'SCHEDULE_FOR_PAYMENT' };
           const result = await graphqlQueryV2(processExpenseMutation, mutationParams, hostWith2FAPolicyAdmin, null, {
             [TwoFactorAuthenticationHeader]: `totp ${generateSync({ secret })}`,
@@ -7820,6 +7821,101 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
           result.errors && console.error(result.errors);
           expect(result.errors).to.not.exist;
           expect(result.data.processExpense.status).to.eq('SCHEDULED_FOR_PAYMENT');
+
+          // Who scheduled the payout is recorded with the status, for the PayPal payout cron, without losing other data
+          await expense.reload();
+          expect(expense.data.scheduledForPaymentByUserId).to.eq(hostWith2FAPolicyAdmin.id);
+          expect(expense.data.existingKey).to.eq('kept');
+        });
+      });
+
+      describe('with the payouts rolling limit', () => {
+        let rollingLimitHost, rollingLimitHostAdmin, rollingLimitCollective, secret;
+
+        const connectPaypal = () =>
+          fakeConnectedAccount({
+            CollectiveId: rollingLimitHost.id,
+            service: 'paypal',
+            clientId: randStr('client-'),
+            token: 'faketoken',
+          });
+
+        const fakeApprovedPaypalExpense = async amount => {
+          const payoutMethod = await fakePayoutMethod({ type: PayoutMethodTypes.PAYPAL });
+          return fakeExpense({
+            amount,
+            currency: 'USD',
+            CollectiveId: rollingLimitCollective.id,
+            status: 'APPROVED',
+            PayoutMethodId: payoutMethod.id,
+          });
+        };
+
+        const schedule = (expense, headers = undefined) =>
+          graphqlQueryV2(
+            processExpenseMutation,
+            { expenseId: expense.id, action: 'SCHEDULE_FOR_PAYMENT' },
+            rollingLimitHostAdmin,
+            null,
+            headers,
+          );
+
+        before(async () => {
+          await resetCaches();
+          rollingLimitHostAdmin = await fakeUser();
+          rollingLimitHost = await fakeActiveHost({
+            admin: rollingLimitHostAdmin.collective,
+            currency: 'USD',
+            settings: {
+              features: { paypalPayouts: true },
+              payoutsTwoFactorAuth: { enabled: true, rollingLimit: 500_00 },
+            },
+          });
+          await fakePlatformSubscription({
+            CollectiveId: rollingLimitHost.id,
+            plan: { features: { [FEATURE.PAYPAL_PAYOUTS]: true } },
+          });
+          rollingLimitCollective = await fakeCollective({ HostCollectiveId: rollingLimitHost.id, currency: 'USD' });
+          await fakeTransaction({
+            type: 'CREDIT',
+            CollectiveId: rollingLimitCollective.id,
+            HostCollectiveId: rollingLimitHost.id,
+            amount: 10_000_00,
+            currency: 'USD',
+          });
+          await rollingLimitHostAdmin.populateRoles();
+          secret = generateSecret({ length: 64 });
+          await UserTwoFactorMethod.create({
+            UserId: rollingLimitHostAdmin.id,
+            method: TwoFactorMethod.TOTP,
+            name: 'TOTP',
+            data: { secret: crypto.encrypt(secret) },
+          });
+        });
+
+        it('does not count a payout that could not be scheduled', async () => {
+          // A 2FA code opens the session and restarts the count
+          const paypalAccount = await connectPaypal();
+          const first = await schedule(await fakeApprovedPaypalExpense(100_00), {
+            [TwoFactorAuthenticationHeader]: `totp ${generateSync({ secret })}`,
+          });
+          expect(first.errors).to.not.exist;
+
+          // PayPal is disconnected: 400 is counted by the 2FA check, then scheduling fails
+          await paypalAccount.destroy();
+          const failing = await fakeApprovedPaypalExpense(400_00);
+          const failed = await schedule(failing);
+          expect(failed.errors).to.exist;
+          expect(failed.errors[0].extensions.code).to.not.eq('2FA_REQUIRED');
+          await failing.reload();
+          expect(failing.status).to.eq('APPROVED');
+
+          // The failed 400 was released: another 400 still fits in the 500 limit without a new code
+          await connectPaypal();
+          const next = await schedule(await fakeApprovedPaypalExpense(400_00));
+          next.errors && console.error(next.errors);
+          expect(next.errors).to.not.exist;
+          expect(next.data.processExpense.status).to.eq('SCHEDULED_FOR_PAYMENT');
         });
       });
     });

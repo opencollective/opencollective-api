@@ -22,13 +22,26 @@ export async function run(): Promise<void> {
   const collectiveBatches = values(groupBy(expenses, 'CollectiveId'));
   logger.info(`Processing ${expenses.length} expense(s) scheduled for payment using PayPal Payouts...`);
   for (const collectiveBatch of collectiveBatches) {
-    const currencyBatches = values(groupBy(collectiveBatch, 'currency'));
+    let expensesToPay: typeof collectiveBatch;
+    try {
+      // Paid without anyone else involved: check again that the payouts are still authorized. All the payouts of the
+      // collective are checked together, whatever their currency, so that its balance is shared the same way every run.
+      const host = await collectiveBatch[0].collective.getHostCollective();
+      expensesToPay = await paypal.checkScheduledPayoutsBeforePaying(host, collectiveBatch);
+    } catch (e) {
+      logger.error(`Error checking PayPal payouts for collective ${collectiveBatch[0].CollectiveId}`, e);
+      continue;
+    }
+
+    const currencyBatches = values(groupBy(expensesToPay, 'currency'));
     // For each currency, we pay all the expenses of the same currency in a single batch due to PayPal limitations
     for (const currencyBatch of currencyBatches) {
       logger.info(
         `Paying collective ${currencyBatch[0].CollectiveId} batch with ${currencyBatch.length} expense(s) in ${currencyBatch[0].currency}...`,
       );
-      await paypal.payExpensesBatch(currencyBatch).catch(console.error);
+      await paypal.payExpensesBatch(currencyBatch).catch(e => {
+        logger.error(`Error paying PayPal batch for collective ${currencyBatch[0].CollectiveId}`, e);
+      });
     }
   }
   logger.info('Done!');

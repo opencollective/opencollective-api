@@ -7,7 +7,7 @@ import moment from 'moment';
 import { assert, createSandbox } from 'sinon';
 
 import { TransferwiseError } from '../../../../server/graphql/errors';
-import cache from '../../../../server/lib/cache';
+import cache, { sessionCache } from '../../../../server/lib/cache';
 import * as transferwiseLib from '../../../../server/lib/transferwise';
 import models from '../../../../server/models';
 import { PayoutMethodTypes } from '../../../../server/models/PayoutMethod';
@@ -769,12 +769,65 @@ describe('server/paymentProviders/transferwise/index', () => {
       expect(fundBatchGroup.secondCall).to.not.have.nested.property('args[3]');
     });
 
+    it('should refuse an OTT token used by another user than the one who started the payment', async () => {
+      const otherUser = await fakeUser();
+      const fundCallsBefore = fundBatchGroup.callCount;
+      const call = transferwise.approveExpenseBatchGroupPayment({
+        host,
+        expenses: [expense],
+        x2faApproval: ottToken,
+        remoteUser: otherUser,
+      });
+      await expect(call).to.be.eventually.rejectedWith(
+        'This batch payment can only be approved by the admin who started it',
+      );
+      expect(fundBatchGroup.callCount).to.be.equal(fundCallsBefore);
+    });
+
+    it('should refuse an OTT token used for other expenses than the ones of the batch', async () => {
+      const otherExpense = await fakeExpense({ CollectiveId: collective.id, status: 'SCHEDULED_FOR_PAYMENT' });
+      const fundCallsBefore = fundBatchGroup.callCount;
+      for (const expenses of [[otherExpense], [expense, otherExpense], []]) {
+        const call = transferwise.approveExpenseBatchGroupPayment({
+          host,
+          expenses,
+          x2faApproval: ottToken,
+          remoteUser: hostAdmin,
+        });
+        await expect(call).to.be.eventually.rejectedWith('The expenses do not match the batch payment being approved');
+      }
+      expect(fundBatchGroup.callCount).to.be.equal(fundCallsBefore);
+    });
+
     it('should retry batchGroup if OTT token is provided', async () => {
       fundBatchGroup.resolves({ id: randStr() });
-      await transferwise.approveExpenseBatchGroupPayment({ host, x2faApproval: ottToken, remoteUser: hostAdmin });
+      await transferwise.approveExpenseBatchGroupPayment({
+        host,
+        expenses: [expense],
+        x2faApproval: ottToken,
+        remoteUser: hostAdmin,
+      });
 
       expect(fundBatchGroup.getCall(2)).to.have.nested.property('args[2]', batchGroupId);
       expect(fundBatchGroup.getCall(2)).to.have.nested.property('args[3]', ottToken);
+    });
+
+    it('should keep a new approval request from Wise, bound to the same admin and expenses', async () => {
+      const pendingApproval = { batchGroupId, UserId: hostAdmin.id, ExpenseIds: [expense.id] };
+      await sessionCache.set(`transferwise_ott_first-code`, pendingApproval, 60);
+      fundBatchGroup.resolves({ status: 403, headers: { 'x-2fa-approval': 'second-code' } });
+
+      const response = await transferwise.approveExpenseBatchGroupPayment({
+        host,
+        expenses: [expense],
+        x2faApproval: 'first-code',
+        remoteUser: hostAdmin,
+      });
+
+      expect(response).to.have.property('status', 403);
+      expect(response).to.have.nested.property('headers.x-2fa-approval', 'second-code');
+      expect(await sessionCache.get('transferwise_ott_first-code')).to.be.undefined;
+      expect(await sessionCache.get('transferwise_ott_second-code')).to.deep.equal(pendingApproval);
     });
 
     it('should fail if batchGroup status === COMPLETED and alreadyPaid is true', async () => {
@@ -877,6 +930,17 @@ describe('server/paymentProviders/transferwise/index', () => {
         Error,
         `Expenses requested do not match the transfers added to batch group ${batchGroupId}`,
       );
+    });
+
+    it('should throw if the expenses do not cover a batch group that is completed but not paid for', async () => {
+      fundBatchGroup.resetHistory();
+      getBatchGroup.resolves({ id: batchGroupId, version: 2, transferIds: [800, 546], status: 'COMPLETED' });
+      const call = transferwise.payExpensesBatchGroup({ host, expenses: [expense], remoteUser: hostAdmin });
+      await expect(call).to.be.eventually.rejectedWith(
+        Error,
+        `Expenses requested do not match the transfers added to batch group ${batchGroupId}`,
+      );
+      expect(fundBatchGroup.called).to.be.false;
     });
   });
 

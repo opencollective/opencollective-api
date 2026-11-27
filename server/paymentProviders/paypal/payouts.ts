@@ -1,5 +1,5 @@
 /* eslint-disable camelcase */
-import { isNil, omit, round, toNumber, truncate } from 'lodash';
+import { groupBy, isNil, omit, partition, round, sortBy, sum, toNumber, truncate } from 'lodash';
 import assert from 'node:assert';
 import { v4 as uuid } from 'uuid';
 
@@ -7,6 +7,7 @@ import activities from '../../constants/activities';
 import { Service } from '../../constants/connected-account';
 import { SupportedCurrency } from '../../constants/currencies';
 import status from '../../constants/expense-status';
+import ExpenseType from '../../constants/expense-type';
 import FEATURE from '../../constants/feature';
 import { applyBalanceAccountingCategoryFromConnectedAccount } from '../../lib/accounting/categorization/balance-accounts';
 import { floatAmountToCents, getFxRate, roundCentsAmount } from '../../lib/currency';
@@ -41,6 +42,145 @@ const getPayoutItemNote = (expense: Expense): string => {
   }
 
   return result;
+};
+
+/** A payout scheduled less than this long ago may not have its `COLLECTIVE_EXPENSE_SCHEDULED_FOR_PAYMENT` activity yet */
+const SCHEDULING_GRACE_PERIOD_MS = 60 * 1000;
+
+/**
+ * Puts a scheduled payout back to APPROVED, so that another admin can schedule it again, and says why in its
+ * activity. Does nothing if the expense is not scheduled for payment anymore.
+ */
+const unschedulePayout = async (expense: Expense, reason: string): Promise<void> => {
+  // The expense was loaded a while ago: only a status that is still SCHEDULED_FOR_PAYMENT is replaced
+  const [nbUpdated] = await models.Expense.update(
+    { status: status.APPROVED },
+    { where: { id: expense.id, status: status.SCHEDULED_FOR_PAYMENT } },
+  );
+  if (!nbUpdated) {
+    return;
+  }
+
+  logger.warn(`PayPal: not paying scheduled expense #${expense.id}: ${reason}`);
+  await expense.reload();
+  await expense.createActivity(activities.COLLECTIVE_EXPENSE_UNSCHEDULED_FOR_PAYMENT, null, {
+    isSystem: true,
+    message: reason,
+  });
+};
+
+/**
+ * The hourly cron pays the PayPal payouts that are scheduled for payment, without anyone else involved. Right before
+ * paying, it checks again that each of them is still authorized:
+ * - The admin who scheduled it (the user of its last `COLLECTIVE_EXPENSE_SCHEDULED_FOR_PAYMENT` activity) is still
+ *   an admin of the host. Removing a compromised admin also stops the payouts they scheduled.
+ * - The collective can still cover it. The balance can go down after scheduling, with a refund or a dispute.
+ *   Settlements and platform bills are not checked, like when scheduling (see `checkHasBalanceToPayExpense`).
+ *
+ * The payouts that are not authorized anymore go back to APPROVED. The expenses that are not scheduled for payment
+ * anymore are left out, and so are the ones scheduled seconds ago that have no record yet of who scheduled them: the
+ * next run handles them.
+ *
+ * @returns the expenses to pay
+ */
+export const checkScheduledPayoutsBeforePaying = async (
+  host: Collective | null,
+  expenses: Expense[],
+): Promise<Expense[]> => {
+  // The expenses were loaded when the cron started: the status of some may have changed since, and an expense may
+  // have been unscheduled and scheduled again by another admin. The status and who scheduled the payout are read
+  // again together.
+  const stillScheduled = await models.Expense.findAll({
+    attributes: ['id', 'data', 'updatedAt'],
+    where: { id: expenses.map(e => e.id), status: status.SCHEDULED_FOR_PAYMENT },
+  });
+  const stillScheduledIds = new Set(stillScheduled.map(e => e.id));
+  const current = new Map(stillScheduled.map(e => [e.id, e]));
+
+  // The collective left its host after the payouts were scheduled: no host can pay them, and they would otherwise
+  // stay scheduled, keeping their amounts in blocked funds
+  if (!host) {
+    for (const expense of expenses.filter(e => stillScheduledIds.has(e.id))) {
+      await unschedulePayout(expense, 'The collective is not hosted anymore');
+    }
+    return [];
+  }
+
+  const stillAuthorized: Expense[] = [];
+  for (const expense of expenses.filter(e => stillScheduledIds.has(e.id))) {
+    // Scheduling records who scheduled the payout in the same write as the status. Payouts scheduled before that
+    // was recorded fall back to the last scheduling activity, which is written right after the status.
+    const { data: currentData, updatedAt } = current.get(expense.id);
+    const isBeingScheduled = Date.now() - new Date(updatedAt).getTime() < SCHEDULING_GRACE_PERIOD_MS;
+    let scheduledByUserId = currentData?.scheduledForPaymentByUserId as number | undefined;
+    if (!scheduledByUserId) {
+      const scheduledActivity = await models.Activity.findOne({
+        where: { ExpenseId: expense.id, type: activities.COLLECTIVE_EXPENSE_SCHEDULED_FOR_PAYMENT },
+        order: [
+          ['createdAt', 'DESC'],
+          ['id', 'DESC'],
+        ],
+      });
+      scheduledByUserId = scheduledActivity?.UserId;
+    }
+    const scheduledBy = scheduledByUserId && (await models.User.findByPk(scheduledByUserId));
+    if (!scheduledBy) {
+      if (!isBeingScheduled) {
+        await unschedulePayout(expense, 'Could not find the admin who scheduled this payout');
+      }
+      continue;
+    }
+
+    await scheduledBy.populateRoles();
+    if (!scheduledBy.isAdmin(host.id)) {
+      if (!isBeingScheduled) {
+        await unschedulePayout(expense, 'The admin who scheduled this payout is no longer an admin of the host');
+      }
+      continue;
+    }
+
+    stillAuthorized.push(expense);
+  }
+
+  // Settlements and platform bills are paid whatever the balance, like when scheduling
+  const [withoutBalanceCheck, withBalanceCheck] = partition(stillAuthorized, e =>
+    [ExpenseType.SETTLEMENT, ExpenseType.PLATFORM_BILLING].includes(e.type),
+  );
+
+  // The balance with blocked funds already sets aside every expense scheduled for payment, these ones included, but
+  // only their amounts: what is available for them is that balance plus their own amounts. Each one needs its amount
+  // plus the PayPal fee when the collective pays it, like when scheduling (see `checkHasBalanceToPayExpense`). They
+  // are paid in the order they were created.
+  const toPay: Expense[] = [...withoutBalanceCheck];
+  const byCollective = Object.values(groupBy(withBalanceCheck, 'CollectiveId'));
+  for (const collectiveExpenses of byCollective) {
+    const collective = collectiveExpenses[0].collective || (await collectiveExpenses[0].getCollective());
+    const amountsInCollectiveCurrency = new Map<number, number>();
+    const neededInCollectiveCurrency = new Map<number, number>();
+    for (const expense of collectiveExpenses) {
+      const fxRate = await getFxRate(expense.currency, collective.currency);
+      const fee = expense.feesPayer === 'PAYEE' ? 0 : await estimatePaypalPayoutFeeInExpenseCurrency(host, expense);
+      amountsInCollectiveCurrency.set(expense.id, roundCentsAmount(expense.amount * fxRate, collective.currency));
+      neededInCollectiveCurrency.set(
+        expense.id,
+        roundCentsAmount((expense.amount + fee) * fxRate, collective.currency),
+      );
+    }
+
+    const balanceWithBlockedFunds = await collective.getBalanceWithBlockedFunds();
+    let available = balanceWithBlockedFunds + sum([...amountsInCollectiveCurrency.values()]);
+    for (const expense of sortBy(collectiveExpenses, 'id')) {
+      const amount = neededInCollectiveCurrency.get(expense.id);
+      if (amount > available) {
+        await unschedulePayout(expense, 'The collective does not have enough funds to pay this expense anymore');
+      } else {
+        available -= amount;
+        toPay.push(expense);
+      }
+    }
+  }
+
+  return toPay;
 };
 
 export const payExpensesBatch = async (expenses: Expense[]): Promise<Expense[]> => {

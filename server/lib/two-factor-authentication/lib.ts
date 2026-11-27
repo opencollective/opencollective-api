@@ -4,7 +4,7 @@ import { isNil, pick } from 'lodash';
 
 import { activities } from '../../constants';
 import POLICIES from '../../constants/policies';
-import { ApolloError, RateLimitExceeded, Unauthorized } from '../../graphql/errors';
+import { ApolloError, BadRequest, Forbidden, RateLimitExceeded, Unauthorized } from '../../graphql/errors';
 import { Activity, Collective, User, UserTwoFactorMethod } from '../../models';
 import { sessionCache } from '../cache';
 import { lockUntilResolved } from '../mutex';
@@ -86,7 +86,7 @@ function getTwoFactorAuthTokenFromRequest(req: Express.Request): Token {
   const code = parts[1];
 
   if (!type || !code) {
-    throw new Error('Malformed 2FA token header');
+    throw new BadRequest('Malformed 2FA token header');
   }
 
   return {
@@ -180,7 +180,7 @@ async function validateRequest(
       return true;
     } else {
       const type = req.personalToken ? 'personal' : 'OAuth';
-      throw new Error(`This ${type} token is not pre-authorized for 2FA`);
+      throw new Forbidden(`This ${type} token is not pre-authorized for 2FA`);
     }
   }
 
