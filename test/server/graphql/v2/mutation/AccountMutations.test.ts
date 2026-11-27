@@ -32,6 +32,7 @@ import {
   fakePlatformSubscription,
   fakeProject,
   fakeTier,
+  fakeTransaction,
   fakeUser,
   fakeUserToken,
   fakeUserTwoFactorMethod,
@@ -2957,6 +2958,38 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       expect(project.deactivatedAt).to.be.null;
       expect(project.approvedAt).to.be.a('date');
     });
+
+    for (const positiveAccount of ['parent', 'project'] as const) {
+      it(`leaves the family untouched when refused because the ${positiveAccount} balance is offset elsewhere`, async () => {
+        const admin = await fakeUser();
+        const host = await fakeActiveHost();
+        const parent = await fakeCollective({ admin, HostCollectiveId: host.id });
+        const project = await fakeProject({ ParentCollectiveId: parent.id, HostCollectiveId: host.id });
+        const [positive, negative] = positiveAccount === 'parent' ? [parent, project] : [project, parent];
+        await fakeTransaction({ CollectiveId: positive.id, HostCollectiveId: host.id, amount: 10000 });
+        await fakeTransaction({ CollectiveId: negative.id, HostCollectiveId: host.id, amount: -10000 });
+        expect(await parent.getBalance({ includeChildren: true })).to.equal(0);
+        const order = await fakeOrder(
+          { CollectiveId: project.id, status: OrderStatuses.ACTIVE },
+          { withSubscription: true },
+        );
+
+        const result = await graphqlQueryV2(archiveAccountMutation, { account: { legacyId: parent.id } }, admin);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.equal(
+          `Cannot archive collective with balance > 0. These accounts still hold a positive balance: ${positive.name} (@${positive.slug}): $100.00`,
+        );
+
+        await Promise.all([parent, project, order].map(entity => entity.reload()));
+        expect(order.status).to.equal(OrderStatuses.ACTIVE);
+        for (const account of [parent, project]) {
+          expect(account.isActive).to.be.true;
+          expect(account.deactivatedAt).to.be.null;
+          expect(account.approvedAt).to.be.a('date');
+          expect(account.HostCollectiveId).to.equal(host.id);
+        }
+      });
+    }
 
     it('cancels the contributions the account makes and flags them for deactivation', async () => {
       const admin = await fakeUser();
