@@ -1626,6 +1626,79 @@ export const canSeeExpenseOnHoldFlag = async (req: express.Request, expense: Exp
 
 // ---- Expense actions ----
 
+const assertExpenseStatusUnchanged = (
+  currentExpense: Expense | null,
+  expectedStatus: Expense['status'],
+  { ownsSoftLock = false } = {},
+): void => {
+  if (!currentExpense) {
+    throw new NotFound('Expense not found');
+  } else if (currentExpense.data?.isLocked && !ownsSoftLock) {
+    throw new ValidationFailed('This expense is currently being processed, please try again later');
+  } else if (currentExpense.status !== expectedStatus) {
+    throw new ValidationFailed(
+      `The status of this expense changed (${currentExpense.status}) while processing the request, please refresh and try again`,
+    );
+  }
+};
+
+/**
+ * For transitions that call a payment provider before writing the new status (scheduling, unscheduling): hold the
+ * processing soft lock (see `lockExpense`) for the whole operation, so that no other status transition or payment can
+ * change the expense while the provider side effects (Wise transfer or batch cancellation, PayPal 2FA rolling limit)
+ * are made, and check that the expense did not change since it was loaded before making them.
+ */
+const withExpenseLockedForProviderCall = async <T>(expense: Expense, callback: () => Promise<T>): Promise<T> => {
+  const expectedStatus = expense.status;
+  const result = await lockExpense(expense.id, async () => {
+    // Reload so that `expense.data` includes the `isLocked` flag: payment providers write `{ ...expense.data, ... }`
+    // from this instance, which would otherwise release the lock while they are still running.
+    await expense.reload();
+    assertExpenseStatusUnchanged(expense, expectedStatus, { ownsSoftLock: true });
+    return callback();
+  });
+
+  // `lockExpense` released the lock through another instance
+  await expense.reload();
+  return result;
+};
+
+/**
+ * Updates an expense's status while holding a row lock, making sure that neither the status nor the
+ * processing soft lock (see `lockExpense`) changed since `expense` was loaded. Without this, a status
+ * transition computed from a stale snapshot (e.g. `APPROVED -> PENDING`) could overwrite a concurrent
+ * payment (`PAID`), allowing the expense to be approved and paid a second time.
+ *
+ * If a concurrent request already moved the expense to the target status (double click, client retry), nothing is
+ * written and `updated` is `false`, so that callers don't record the transition twice.
+ */
+const updateExpenseStatusWithLock = async (
+  expense: Expense,
+  values: Parameters<Expense['update']>[0] & { status: Expense['status'] },
+  {
+    // Pass this explicitly when `expense` may have been reloaded since the permission checks (e.g. by a payment
+    // provider), otherwise a status changed concurrently in the meantime would be silently accepted.
+    expectedStatus = expense.status,
+    // Set when called from `withExpenseLockedForProviderCall`, which holds the processing soft lock itself
+    ownsSoftLock = false,
+  }: { expectedStatus?: Expense['status']; ownsSoftLock?: boolean } = {},
+): Promise<{ expense: Expense; updated: boolean }> => {
+  return sequelize.transaction(async transaction => {
+    const lockedExpense = await models.Expense.findByPk(expense.id, { lock: true, transaction });
+    if (
+      lockedExpense &&
+      (!lockedExpense.data?.isLocked || ownsSoftLock) &&
+      expectedStatus !== values.status &&
+      lockedExpense.status === values.status
+    ) {
+      return { expense: lockedExpense, updated: false };
+    }
+
+    assertExpenseStatusUnchanged(lockedExpense, expectedStatus, { ownsSoftLock });
+    return { expense: await expense.update(values, { transaction }), updated: true };
+  });
+};
+
 export const approveExpense = async (req: express.Request, expense: Expense): Promise<Expense> => {
   if (expense.status === 'APPROVED') {
     return expense;
@@ -1633,8 +1706,13 @@ export const approveExpense = async (req: express.Request, expense: Expense): Pr
     throw new Forbidden();
   }
 
-  const updatedExpense = await expense.update({ status: 'APPROVED', lastEditedById: req.remoteUser.id });
-  await expense.createActivity(activities.COLLECTIVE_EXPENSE_APPROVED, req.remoteUser);
+  const { expense: updatedExpense, updated } = await updateExpenseStatusWithLock(expense, {
+    status: 'APPROVED',
+    lastEditedById: req.remoteUser.id,
+  });
+  if (updated) {
+    await expense.createActivity(activities.COLLECTIVE_EXPENSE_APPROVED, req.remoteUser);
+  }
   return updatedExpense;
 };
 
@@ -1645,8 +1723,13 @@ export const unapproveExpense = async (req: express.Request, expense: Expense): 
     throw new Forbidden();
   }
 
-  const updatedExpense = await expense.update({ status: 'PENDING', lastEditedById: req.remoteUser.id });
-  await expense.createActivity(activities.COLLECTIVE_EXPENSE_UNAPPROVED, req.remoteUser);
+  const { expense: updatedExpense, updated } = await updateExpenseStatusWithLock(expense, {
+    status: 'PENDING',
+    lastEditedById: req.remoteUser.id,
+  });
+  if (updated) {
+    await expense.createActivity(activities.COLLECTIVE_EXPENSE_UNAPPROVED, req.remoteUser);
+  }
   return updatedExpense;
 };
 
@@ -1657,8 +1740,13 @@ export const requestExpenseReApproval = async (req: express.Request, expense: Ex
     throw new Forbidden();
   }
 
-  const updatedExpense = await expense.update({ status: 'PENDING', lastEditedById: req.remoteUser.id });
-  await expense.createActivity(activities.COLLECTIVE_EXPENSE_RE_APPROVAL_REQUESTED, req.remoteUser);
+  const { expense: updatedExpense, updated } = await updateExpenseStatusWithLock(expense, {
+    status: 'PENDING',
+    lastEditedById: req.remoteUser.id,
+  });
+  if (updated) {
+    await expense.createActivity(activities.COLLECTIVE_EXPENSE_RE_APPROVAL_REQUESTED, req.remoteUser);
+  }
   return updatedExpense;
 };
 
@@ -1669,12 +1757,14 @@ export const markExpenseAsIncomplete = async (req: express.Request, expense: Exp
     throw new Forbidden();
   }
 
-  const updatedExpense = await expense.update({
+  const { expense: updatedExpense, updated } = await updateExpenseStatusWithLock(expense, {
     status: 'INCOMPLETE',
     lastEditedById: req.remoteUser.id,
     onHold: false,
   });
-  await expense.createActivity(activities.COLLECTIVE_EXPENSE_MARKED_AS_INCOMPLETE, req.remoteUser);
+  if (updated) {
+    await expense.createActivity(activities.COLLECTIVE_EXPENSE_MARKED_AS_INCOMPLETE, req.remoteUser);
+  }
   return updatedExpense;
 };
 
@@ -1685,12 +1775,14 @@ export const rejectExpense = async (req: express.Request, expense: Expense): Pro
     throw new Forbidden();
   }
 
-  const updatedExpense = await expense.update({
+  const { expense: updatedExpense, updated } = await updateExpenseStatusWithLock(expense, {
     status: 'REJECTED',
     lastEditedById: req.remoteUser.id,
     onHold: false,
   });
-  await expense.createActivity(activities.COLLECTIVE_EXPENSE_REJECTED, req.remoteUser);
+  if (updated) {
+    await expense.createActivity(activities.COLLECTIVE_EXPENSE_REJECTED, req.remoteUser);
+  }
   return updatedExpense;
 };
 
@@ -1733,11 +1825,14 @@ export const markExpenseAsSpam = async (req: express.Request, expense: Expense):
     throw new Forbidden();
   }
 
-  const updatedExpense = await expense.update({
+  const { expense: updatedExpense, updated } = await updateExpenseStatusWithLock(expense, {
     status: 'SPAM',
     lastEditedById: req.remoteUser.id,
     onHold: false,
   });
+  if (!updated) {
+    return updatedExpense;
+  }
 
   // Limit the user so they can't submit expenses in the future
   // This is intentional moderation behavior: USE_EXPENSES is limited platform-wide for the submitter
@@ -1926,44 +2021,50 @@ export const scheduleExpenseForPayment = async (
     throw new Forbidden("You're authenticated but you can't schedule this expense for payment");
   }
 
-  const host = expense.collective.host || (await expense.collective.getHostCollective({ loaders: req.loaders }));
-  if (expense.currency !== expense.collective.currency && !hasMultiCurrency(expense.collective, host)) {
-    throw new Forbidden('Multi-currency expenses are not enabled for this collective');
-  }
+  // The Wise provider reloads `expense`, so keep the status the permission checks above were made against
+  const statusBeforeScheduling = expense.status;
+  return withExpenseLockedForProviderCall(expense, async () => {
+    const host = expense.collective.host || (await expense.collective.getHostCollective({ loaders: req.loaders }));
+    if (expense.currency !== expense.collective.currency && !hasMultiCurrency(expense.collective, host)) {
+      throw new Forbidden('Multi-currency expenses are not enabled for this collective');
+    }
 
-  // Update the feesPayer right away because the rest of the process (i.e create transactions) depends on this
-  if (options.feesPayer && options.feesPayer !== expense.feesPayer) {
-    await expense.update({ feesPayer: options.feesPayer });
-  }
+    // Update the feesPayer right away because the rest of the process (i.e create transactions) depends on this
+    if (options.feesPayer && options.feesPayer !== expense.feesPayer) {
+      await expense.update({ feesPayer: options.feesPayer });
+    }
 
-  expense.PayoutMethod = await req.loaders.PayoutMethod.byId.load(expense.PayoutMethodId);
-  await checkHasBalanceToPayExpense(host, expense, expense.PayoutMethod);
-  const hostHasPayoutTwoFactorAuthenticationEnabled = get(host, 'settings.payoutsTwoFactorAuth.enabled', false);
-  if (expense.PayoutMethod.type === PayoutMethodTypes.PAYPAL && hostHasPayoutTwoFactorAuthenticationEnabled) {
-    await validateExpensePayout2FALimit(req, host, expense);
-  } else {
-    // Not using rolling limit, but still enforcing 2FA for all admins (same as `payExpense`)
-    await twoFactorAuthLib.enforceForAccount(req, host, { onlyAskOnLogin: true });
-  }
+    expense.PayoutMethod = await req.loaders.PayoutMethod.byId.load(expense.PayoutMethodId);
+    await checkHasBalanceToPayExpense(host, expense, expense.PayoutMethod);
+    const hostHasPayoutTwoFactorAuthenticationEnabled = get(host, 'settings.payoutsTwoFactorAuth.enabled', false);
+    if (expense.PayoutMethod.type === PayoutMethodTypes.PAYPAL && hostHasPayoutTwoFactorAuthenticationEnabled) {
+      await validateExpensePayout2FALimit(req, host, expense);
+    } else {
+      // Not using rolling limit, but still enforcing 2FA for all admins (same as `payExpense`)
+      await twoFactorAuthLib.enforceForAccount(req, host, { onlyAskOnLogin: true });
+    }
 
-  // If Wise, add expense to a new batch group
-  if (expense.PayoutMethod.type === PayoutMethodTypes.BANK_ACCOUNT) {
-    await checkFeatureAccess(host, FEATURE.TRANSFERWISE, { loaders: req.loaders });
-    await paymentProviders.transferwise.scheduleExpenseForPayment(expense, options.transferDetails, req.remoteUser);
-  }
-  // If PayPal, check if host is connected to PayPal
-  else if (expense.PayoutMethod.type === PayoutMethodTypes.PAYPAL) {
-    await checkFeatureAccess(host, FEATURE.PAYPAL_PAYOUTS, { loaders: req.loaders });
-    await host.getAccountForPaymentProvider(Service.PAYPAL);
-  }
+    // If Wise, add expense to a new batch group
+    if (expense.PayoutMethod.type === PayoutMethodTypes.BANK_ACCOUNT) {
+      await checkFeatureAccess(host, FEATURE.TRANSFERWISE, { loaders: req.loaders });
+      await paymentProviders.transferwise.scheduleExpenseForPayment(expense, options.transferDetails, req.remoteUser);
+    }
+    // If PayPal, check if host is connected to PayPal
+    else if (expense.PayoutMethod.type === PayoutMethodTypes.PAYPAL) {
+      await checkFeatureAccess(host, FEATURE.PAYPAL_PAYOUTS, { loaders: req.loaders });
+      await host.getAccountForPaymentProvider(Service.PAYPAL);
+    }
 
-  const updatedExpense = await expense.update({
-    status: 'SCHEDULED_FOR_PAYMENT',
-    lastEditedById: req.remoteUser.id,
-    onHold: false,
+    const { expense: updatedExpense, updated } = await updateExpenseStatusWithLock(
+      expense,
+      { status: 'SCHEDULED_FOR_PAYMENT', lastEditedById: req.remoteUser.id, onHold: false },
+      { expectedStatus: statusBeforeScheduling, ownsSoftLock: true },
+    );
+    if (updated) {
+      await expense.createActivity(activities.COLLECTIVE_EXPENSE_SCHEDULED_FOR_PAYMENT, req.remoteUser);
+    }
+    return updatedExpense;
   });
-  await expense.createActivity(activities.COLLECTIVE_EXPENSE_SCHEDULED_FOR_PAYMENT, req.remoteUser);
-  return updatedExpense;
 };
 
 export const unscheduleExpensePayment = async (req: express.Request, expense: Expense): Promise<Expense> => {
@@ -1971,22 +2072,32 @@ export const unscheduleExpensePayment = async (req: express.Request, expense: Ex
     throw new BadRequest("Expense is not scheduled for payment or you don't have authorization to unschedule it");
   }
 
-  // If Wise, add expense to a new batch group
-  const payoutMethod = await expense.getPayoutMethod();
-  if (payoutMethod.type === PayoutMethodTypes.BANK_ACCOUNT) {
-    const host = await loadHostForExpense(req, expense);
-    await checkFeatureAccess(host, FEATURE.TRANSFERWISE, { loaders: req.loaders });
-    await paymentProviders.transferwise.unscheduleExpenseForPayment(expense);
-  }
+  return withExpenseLockedForProviderCall(expense, async () => {
+    // If Wise, add expense to a new batch group
+    let expectedStatus = expense.status;
+    const payoutMethod = await expense.getPayoutMethod();
+    if (payoutMethod.type === PayoutMethodTypes.BANK_ACCOUNT) {
+      const host = await loadHostForExpense(req, expense);
+      await checkFeatureAccess(host, FEATURE.TRANSFERWISE, { loaders: req.loaders });
+      await paymentProviders.transferwise.unscheduleExpenseForPayment(expense);
+      // The Wise provider moves every expense of the canceled batch (including this one) back to APPROVED
+      // through other instances: refresh ours, and expect the status the provider committed.
+      await expense.reload();
+      expectedStatus = ExpenseStatus.APPROVED;
+    }
 
-  const updatedExpense = await expense.update({
-    status: 'APPROVED',
-    lastEditedById: req.remoteUser.id,
+    const { expense: updatedExpense, updated } = await updateExpenseStatusWithLock(
+      expense,
+      { status: 'APPROVED', lastEditedById: req.remoteUser.id },
+      { expectedStatus, ownsSoftLock: true },
+    );
+
+    if (updated) {
+      await expense.createActivity(activities.COLLECTIVE_EXPENSE_UNSCHEDULED_FOR_PAYMENT, req.remoteUser);
+    }
+
+    return updatedExpense;
   });
-
-  await expense.createActivity(activities.COLLECTIVE_EXPENSE_UNSCHEDULED_FOR_PAYMENT, req.remoteUser);
-
-  return updatedExpense;
 };
 
 /** Check expense's items values, throw if something's wrong */
