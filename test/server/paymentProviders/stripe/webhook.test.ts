@@ -612,9 +612,18 @@ describe('webhook', () => {
       it('reports succeeded payment intents that match no order to Sentry', async () => {
         const reportStub = sandbox.stub(SentryLib, 'reportMessageToSentry');
         set(event, 'data.object.id', randStr('pi_notfound'));
+        set(event, 'data.object.metadata', { orderId: `${order.id}` });
         await webhook.stripePaymentIntentSucceeded(event);
 
         assert.calledOnceWithMatch(reportStub, sinon.match('Could not find Order for succeeded Payment Intent'));
+      });
+
+      it('does not report unmatched payment intents that were not created by us', async () => {
+        const reportStub = sandbox.stub(SentryLib, 'reportMessageToSentry');
+        set(event, 'data.object.id', randStr('pi_foreign'));
+        await webhook.stripePaymentIntentSucceeded(event);
+
+        assert.notCalled(reportStub);
       });
 
       it('does not report payment intents already processed synchronously', async () => {
@@ -1669,6 +1678,24 @@ describe('webhook', () => {
         expect(expense.status).to.eql(ExpenseStatuses.PAID);
         expect(transactions.createTransactionsFromPaidStripeExpense).to.have.been.calledOnce;
       });
+
+      for (const [label, account] of [
+        ['without an account', undefined],
+        ['for the platform account', config.stripe.accountId],
+      ]) {
+        it(`trusts the metadata of an unknown intent coming from the platform (${label})`, async () => {
+          await expense.update({ data: { stripePaymentIntent: { id: randStr('pi_fake') } as Stripe.PaymentIntent } });
+          event.account = account;
+          event.data.object.id = randStr('pi_platform');
+          event.data.object.metadata = { expenseId: `${expense.id}` };
+
+          await webhook.stripePaymentIntentSucceeded(event);
+
+          await expense.reload();
+          expect(expense.status).to.eql(ExpenseStatuses.PAID);
+          expect(transactions.createTransactionsFromPaidStripeExpense).to.have.been.calledOnce;
+        });
+      }
 
       it('does not trust the metadata of an unknown intent coming from a connected account', async () => {
         await expense.update({ data: { stripePaymentIntent: { id: randStr('pi_fake') } as Stripe.PaymentIntent } });

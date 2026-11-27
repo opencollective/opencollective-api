@@ -338,6 +338,13 @@ const handleOrderPaymentIntentSucceeded = async (event: Stripe.Event) => {
   });
 
   if (!order) {
+    // Hosts connect their own Stripe accounts, so we can receive intents that have nothing to do with us:
+    // only report the ones we created, which all carry their order ID.
+    if (!stripePaymentIntent.metadata?.orderId) {
+      logger.debug(`Stripe Webhook: Could not find Order for Payment Intent ${stripePaymentIntent.id}`);
+      return;
+    }
+
     // Synchronous card payments are recorded right away and move their intent to `previousStripePaymentIntents`
     // before this webhook arrives. Only a recorded charge proves the payment is in the ledger: report everything else.
     const existingChargeTransaction =

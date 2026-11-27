@@ -12,7 +12,7 @@ import {
   GraphQLString,
 } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
-import { groupBy, isNil, omit, pick, size } from 'lodash';
+import { groupBy, isNil, omit, pick, size, uniq } from 'lodash';
 import { v4 as uuid } from 'uuid';
 
 import ActivityTypes from '../../../constants/activities';
@@ -895,16 +895,27 @@ const expenseMutations = {
       }
 
       const isPlatformHost = payeeHostStripeAccount.username === config.stripe.accountId;
+      const stripeRequestOptions = !isPlatformHost ? { stripeAccount: payeeHostStripeAccount.username } : undefined;
+      const cancellableStatuses = [
+        'requires_payment_method',
+        'requires_confirmation',
+        'requires_action',
+        'requires_capture',
+      ];
+
+      // Archived intents can still be confirmed (e.g. after a decline, or a failure once processing): list them
+      // before touching the stored one, so they can be cancelled before a new intent is created.
+      const archivedStripePaymentIntentIds = uniq(
+        (expense.data?.previousStripePaymentIntents ?? [])
+          .filter(pi => pi?.id && !['canceled', 'succeeded'].includes(pi.status))
+          .map(pi => pi.id),
+      );
 
       const storedStripePaymentIntent = expense.data?.stripePaymentIntent;
       if (storedStripePaymentIntent?.id) {
         const stripePaymentIntent = await stripe.paymentIntents.retrieve(
           storedStripePaymentIntent.id,
-          !isPlatformHost
-            ? {
-                stripeAccount: payeeHostStripeAccount.username,
-              }
-            : undefined,
+          stripeRequestOptions,
         );
 
         const matchesExpense =
@@ -922,13 +933,9 @@ const expenseMutations = {
         }
 
         // The stored intent is outdated (e.g. the expense amount changed): cancel it so that only one
-        // intent can ever be confirmed for this expense.
-        if (!['canceled', 'succeeded', 'processing'].includes(stripePaymentIntent.status)) {
-          await stripe.paymentIntents.cancel(
-            stripePaymentIntent.id,
-            undefined,
-            !isPlatformHost ? { stripeAccount: payeeHostStripeAccount.username } : undefined,
-          );
+        // intent can be confirmed for this expense.
+        if (cancellableStatuses.includes(stripePaymentIntent.status)) {
+          await stripe.paymentIntents.cancel(stripePaymentIntent.id, undefined, stripeRequestOptions);
         }
 
         await expense.update({
@@ -937,6 +944,23 @@ const expenseMutations = {
             previousStripePaymentIntents: [...(expense.data.previousStripePaymentIntents ?? []), stripePaymentIntent],
           },
         });
+      }
+
+      for (const archivedStripePaymentIntentId of archivedStripePaymentIntentIds) {
+        try {
+          const archivedStripePaymentIntent = await stripe.paymentIntents.retrieve(
+            archivedStripePaymentIntentId,
+            stripeRequestOptions,
+          );
+          if (cancellableStatuses.includes(archivedStripePaymentIntent.status)) {
+            await stripe.paymentIntents.cancel(archivedStripePaymentIntentId, undefined, stripeRequestOptions);
+          }
+        } catch (e) {
+          // Don't block the payment (e.g. intent on a Stripe account the host no longer uses). The webhook
+          // still refuses to record a second payment for the expense if this intent ever succeeds.
+          logger.warn(`Could not cancel archived payment intent ${archivedStripePaymentIntentId}: ${e.message}`);
+          reportErrorToSentry(e, { req, extra: { expenseId: expense.id, archivedStripePaymentIntentId } });
+        }
       }
 
       let stripeCustomerAccount = await payer.getCustomerStripeAccount(payeeHostStripeAccount.username);

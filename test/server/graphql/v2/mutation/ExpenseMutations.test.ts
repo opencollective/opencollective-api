@@ -6,6 +6,7 @@ import moment from 'moment';
 import { generateSecret, generateSync } from 'otplib';
 import type { SinonSpy, SinonStub } from 'sinon';
 import { createSandbox } from 'sinon';
+import type Stripe from 'stripe';
 
 import { activities, expenseStatus, expenseTypes } from '../../../../../server/constants';
 import { CollectiveType } from '../../../../../server/constants/collectives';
@@ -9201,6 +9202,35 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(expense.data.stripePaymentIntent.id).to.equal('pi_new'); // overwritten with the fresh PI
       });
     }
+
+    it('cancels archived PaymentIntents that are still live before creating a new one', async () => {
+      const { hostAdmin, expense } = await setupStripeExpense();
+      await expense.update({
+        data: {
+          previousStripePaymentIntents: [
+            { id: 'pi_declined', status: 'requires_payment_method' } as Stripe.PaymentIntent,
+            { id: 'pi_done', status: 'succeeded' } as Stripe.PaymentIntent,
+          ],
+        },
+      });
+      const retrieveStub = sandbox
+        .stub(stripe.paymentIntents, 'retrieve')
+        .resolves({ id: 'pi_declined', amount: 1000, currency: 'usd', status: 'requires_payment_method' });
+      const cancelStub = sandbox.stub(stripe.paymentIntents, 'cancel').resolves({ id: 'pi_declined' });
+      sandbox.stub(stripe.customers, 'create').resolves({ id: 'cus_test' });
+      sandbox
+        .stub(stripe.paymentIntents, 'create')
+        // eslint-disable-next-line camelcase
+        .resolves({ id: 'pi_new', client_secret: 'cs_new', status: 'requires_payment_method' });
+
+      const result = await graphqlQueryV2(createPaymentIntentMutation, { expense: expenseRef(expense) }, hostAdmin);
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.createExpenseStripePaymentIntent.id).to.equal('pi_new');
+      expect(retrieveStub.calledOnce).to.be.true; // succeeded intents are not checked again
+      expect(cancelStub.calledOnce).to.be.true;
+      expect(cancelStub.firstCall.args[0]).to.equal('pi_declined');
+    });
 
     it('cancels the stored PaymentIntent before creating a new one when it no longer matches the expense', async () => {
       const { hostAdmin, expense } = await setupStripeExpense({
