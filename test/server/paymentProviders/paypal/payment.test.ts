@@ -66,6 +66,8 @@ describe('server/paymentProviders/paypal/payment', () => {
         currency = 'USD',
         captureStatus = 'COMPLETED',
         failOnOrderDetails = false,
+        payee = undefined,
+        purchaseUnits = undefined,
       } = {}) => {
         // Catch the retrieval of auth tokens
         nock('https://api.sandbox.paypal.com')
@@ -80,7 +82,7 @@ describe('server/paymentProviders/paypal/payment', () => {
             .matchHeader('Authorization', 'Bearer dat-token')
             .get('/v2/checkout/orders/fake-order-id')
             .reply(200, {
-              purchase_units: [{ amount: { value: amount, currency_code: currency } }],
+              purchase_units: purchaseUnits || [{ amount: { value: amount, currency_code: currency }, payee }],
             });
         } else {
           nock('https://api.sandbox.paypal.com')
@@ -161,6 +163,103 @@ describe('server/paymentProviders/paypal/payment', () => {
         await expect(paypalPayment.processOrder(order)).to.be.rejectedWith(
           /The amount\/currency for this payment doesn't match what's expected for this order/,
         );
+      });
+
+      it('rejects if the order has more than one purchase unit', async () => {
+        const unit = { amount: { value: '10.00', currency_code: 'USD' } };
+        mockPaypalOrderDetail({ purchaseUnits: [unit, { amount: { value: '500.00', currency_code: 'USD' } }] });
+        await expect(paypalPayment.processOrder(order)).to.be.rejectedWith(
+          /This PayPal order must contain exactly one purchase unit/,
+        );
+        expect(authorizePaymentNock.isDone()).to.be.false;
+      });
+
+      it('rejects if the order has no purchase unit', async () => {
+        mockPaypalOrderDetail({ purchaseUnits: [] });
+        await expect(paypalPayment.processOrder(order)).to.be.rejectedWith(
+          /This PayPal order must contain exactly one purchase unit/,
+        );
+        expect(authorizePaymentNock.isDone()).to.be.false;
+      });
+
+      describe('payee', () => {
+        let sandbox, reportMessageStub;
+
+        beforeEach(() => {
+          sandbox = createSandbox();
+          reportMessageStub = sandbox.stub(SentryLib, 'reportMessageToSentry');
+        });
+
+        afterEach(() => {
+          sandbox.restore();
+        });
+
+        const mockHostUserInfo = ({ status = 200, body = { payer_id: 'HOST-MERCHANT-ID' } } = {}) =>
+          nock('https://api.sandbox.paypal.com')
+            .matchHeader('Authorization', 'Bearer dat-token')
+            .get('/v1/identity/oauth2/userinfo')
+            .query({ schema: 'paypalv1.1' })
+            .reply(status, body);
+
+        it('does not look up the host merchant ID when the order has no payee', async () => {
+          mockPaypalOrderDetail();
+          const userInfoNock = mockHostUserInfo();
+          const transaction = await paypalPayment.processOrder(order);
+          expect(transaction).to.exist;
+          expect(userInfoNock.isDone()).to.be.false;
+          expect(reportMessageStub.called).to.be.false;
+        });
+
+        it('rejects if the payee only has an email address', async () => {
+          mockPaypalOrderDetail({ payee: { email_address: 'host@example.com' } });
+          mockHostUserInfo();
+          await expect(paypalPayment.processOrder(order)).to.be.rejectedWith(
+            /The recipient of this PayPal payment doesn't match the host's PayPal account/,
+          );
+          expect(authorizePaymentNock.isDone()).to.be.false;
+        });
+
+        it('lets the payment through and reports to Sentry if the userinfo call fails', async () => {
+          mockPaypalOrderDetail({ payee: { merchant_id: 'OTHER-MERCHANT-ID' } });
+          const userInfoNock = mockHostUserInfo({ status: 401, body: { error: 'invalid_token' } as never });
+          const transaction = await paypalPayment.processOrder(order);
+          expect(userInfoNock.isDone()).to.be.true;
+          expect(transaction).to.exist;
+          expect(reportMessageStub.calledOnce).to.be.true;
+          expect(reportMessageStub.firstCall.args[0]).to.eq('Could not retrieve the PayPal merchant ID of the host');
+          expect(reportMessageStub.firstCall.args[1].extra.hostId).to.eq(host.id);
+          expect(reportMessageStub.firstCall.args[1].tags.hostId).to.eq(String(host.id));
+          expect(reportMessageStub.firstCall.args[1].fingerprint).to.deep.eq(['paypal-host-merchant-id-lookup-failed']);
+        });
+
+        it('lets the payment through and reports to Sentry if userinfo returns no payer_id', async () => {
+          mockPaypalOrderDetail({ payee: { merchant_id: 'OTHER-MERCHANT-ID' } });
+          const userInfoNock = mockHostUserInfo({ body: {} as never });
+          const transaction = await paypalPayment.processOrder(order);
+          expect(userInfoNock.isDone()).to.be.true;
+          expect(transaction).to.exist;
+          expect(reportMessageStub.calledOnce).to.be.true;
+          expect(reportMessageStub.firstCall.args[0]).to.eq('Could not retrieve the PayPal merchant ID of the host');
+          expect(reportMessageStub.firstCall.args[1].fingerprint).to.deep.eq(['paypal-host-merchant-id-lookup-failed']);
+        });
+
+        it('rejects if the payee is not the host PayPal account', async () => {
+          mockPaypalOrderDetail({ payee: { email_address: 'other@example.com', merchant_id: 'OTHER-MERCHANT-ID' } });
+          mockHostUserInfo();
+          await expect(paypalPayment.processOrder(order)).to.be.rejectedWith(
+            /The recipient of this PayPal payment doesn't match the host's PayPal account/,
+          );
+          expect(authorizePaymentNock.isDone()).to.be.false;
+          expect(await models.Transaction.count({ where: { OrderId: order.id } })).to.eq(0);
+        });
+
+        it('accepts if the payee is the host PayPal account', async () => {
+          mockPaypalOrderDetail({ payee: { email_address: 'host@example.com', merchant_id: 'HOST-MERCHANT-ID' } });
+          mockHostUserInfo();
+          const transaction = await paypalPayment.processOrder(order);
+          expect(transaction).to.exist;
+          expect(transaction.amount).to.eq(order.totalAmount);
+        });
       });
 
       it('Calls PayPal to confirm the order then records the transactions', async () => {

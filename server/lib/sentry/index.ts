@@ -35,6 +35,8 @@ export type CaptureErrorParams = {
   transactionName?: string;
   /** Used to group Axios errors, when the URL includes parameters */
   requestPath?: string;
+  /** Overrides Sentry's default grouping, e.g. to get one issue (and alert) per known failure */
+  fingerprint?: string[];
   /** Masked token, only used to add context to the fallback log message */
   accessToken?: string;
   req?: Express.Request;
@@ -113,6 +115,7 @@ const withScopeFromCaptureErrorParams = (
     feature,
     domain,
     requestPath,
+    fingerprint,
     req,
   }: CaptureErrorParams = {},
   callback: (scope: Sentry.Scope) => void,
@@ -135,6 +138,10 @@ const withScopeFromCaptureErrorParams = (
     }
     if (!isEmpty(tags)) {
       Object.entries(tags).forEach(([tag, value]) => scope.setTag(tag, value));
+    }
+
+    if (fingerprint?.length) {
+      scope.setFingerprint(fingerprint);
     }
 
     // Set user
