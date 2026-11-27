@@ -1,4 +1,5 @@
 import { expect } from 'chai';
+import config from 'config';
 import gql from 'fake-tag';
 
 import { CollectiveType } from '../../../../../server/constants/collectives';
@@ -15,6 +16,7 @@ import {
   fakeExpense,
   fakeHost,
   fakeMemberInvitation,
+  fakeOpenCollectiveS3URL,
   fakeOrganization,
   fakePayoutMethod,
   fakePrivateHost,
@@ -148,6 +150,25 @@ describe('server/graphql/v2/mutation/VendorMutations', () => {
 
       const location = await vendor.getLocation();
       expect(location.address).to.equal('Zorg Planet, 123');
+    });
+
+    it('rejects a tax form URL pointing to the tax forms bucket', async () => {
+      const victim = await fakeCollective();
+      const taxFormUrl = fakeOpenCollectiveS3URL({
+        bucket: config.taxForms.aws.s3.bucket,
+        key: `US_TAX_FORM/${new Date().getFullYear()}/Name-${victim.id}.pdf`,
+      });
+      const result = await graphqlQueryV2(
+        createVendorMutation,
+        {
+          host: { legacyId: host.id },
+          vendor: { ...vendorData, vendorInfo: { ...vendorData.vendorInfo, taxFormUrl } },
+        },
+        hostAdminUser,
+      );
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('Links to tax forms stored on the platform cannot be set manually');
+      expect(await models.Collective.count({ where: { type: 'VENDOR', ParentCollectiveId: host.id } })).to.eq(0);
     });
 
     it('accepts publicId in AccountReferenceInput for host', async () => {
@@ -349,6 +370,31 @@ describe('server/graphql/v2/mutation/VendorMutations', () => {
       );
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.match(/Account is not a vendor/);
+    });
+
+    it('rejects a tax form URL pointing to the tax forms bucket', async () => {
+      const vendor = await fakeCollective({
+        type: CollectiveType.VENDOR,
+        ParentCollectiveId: host.id,
+        name: 'Original name',
+        data: { vendorInfo: vendorData.vendorInfo },
+      });
+      const taxFormUrl = fakeOpenCollectiveS3URL({
+        bucket: config.taxForms.aws.s3.bucket,
+        key: `US_TAX_FORM/${new Date().getFullYear()}/Name-${vendor.id}.pdf`,
+      });
+      const result = await graphqlQueryV2(
+        editVendorMutation,
+        { vendor: { legacyId: vendor.id, name: 'New name', vendorInfo: { ...vendorData.vendorInfo, taxFormUrl } } },
+        hostAdminUser,
+      );
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('Links to tax forms stored on the platform cannot be set manually');
+
+      await vendor.reload();
+      expect(vendor.name).to.equal('Original name');
+      expect(vendor.data.vendorInfo.taxFormUrl).to.equal(vendorData.vendorInfo.taxFormUrl);
+      expect(await models.LegalDocument.count({ where: { CollectiveId: vendor.id } })).to.eq(0);
     });
 
     it('edits a vendor account', async () => {

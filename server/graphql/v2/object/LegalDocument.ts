@@ -73,7 +73,7 @@ export const GraphQLLegalDocument = new GraphQLObjectType({
       description:
         'URL to download the file. Must be logged in as a host with access to the document. The returned URL will be protected by authentication + 2FA.',
       resolve: async document => {
-        if (document.canDownload()) {
+        if (await document.canDownload()) {
           return `${config.host.api}/legal-documents/${idEncode(document.id, 'legal-document')}/download`;
         }
       },

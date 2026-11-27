@@ -18,6 +18,7 @@ import {
   TAX_FORM_IGNORED_EXPENSE_TYPES,
   US_TAX_FORM_VALIDITY_IN_YEARS,
 } from '../constants/tax-form';
+import { ValidationFailed } from '../graphql/errors';
 import { parseS3Url } from '../lib/awsS3';
 import { crypto, secretbox } from '../lib/encryption';
 import { trackActivityDispatch } from '../lib/notifications/activity-dispatch-tracker';
@@ -26,7 +27,7 @@ import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import SQLQueries from '../lib/queries';
 import { reportErrorToSentry } from '../lib/sentry';
 import sequelize from '../lib/sequelize';
-import { getTaxFormsS3Bucket } from '../lib/tax-forms';
+import { getTaxFormS3KeyCollectiveId, getTaxFormsS3Bucket, isTaxFormS3Key } from '../lib/tax-forms';
 import { isValidURL, prependHttp } from '../lib/url-utils';
 
 import Activity from './Activity';
@@ -56,6 +57,16 @@ export enum LEGAL_DOCUMENT_SERVICE {
 }
 
 const ENCRYPTION_KEY = get(config, 'taxForms.encryptionKey');
+
+/**
+ * Tax form S3 keys only include the account ID since 2025-01-09 (#10614). Older keys can't be bound to an account,
+ * so we only trust them on documents created before that date (their links can't be changed to point to the
+ * tax forms bucket anymore, see `assertManualDocumentLinkIsAllowed`).
+ */
+const TAX_FORM_KEYS_INCLUDE_ACCOUNT_ID_SINCE = new Date('2025-01-10T00:00:00Z');
+
+/** Max length of a `mergedIntoCollectiveId` chain (A merged into B, B merged into C...) to follow */
+const MAX_ACCOUNT_MERGE_HOPS = 10;
 
 export type LegalDocumentAttributes = InferAttributes<LegalDocument>;
 
@@ -310,9 +321,32 @@ class LegalDocument extends ModelWithPublicId<
   };
 
   /**
+   * Manually set links can point to external services (e.g. Google Drive), but never to the tax forms bucket:
+   * files there are downloaded & decrypted by the platform, and only the platform itself should link to them.
+   */
+  static assertManualDocumentLinkIsAllowed = (documentLink: string): void => {
+    const trimmedLink = documentLink?.trim();
+    if (!trimmedLink) {
+      return;
+    }
+
+    let bucket: string;
+    try {
+      ({ bucket } = parseS3Url(prependHttp(trimmedLink, { https: true })));
+    } catch {
+      return; // Not an S3 link
+    }
+
+    const taxFormsBucket = getTaxFormsS3Bucket();
+    if (taxFormsBucket && bucket === taxFormsBucket) {
+      throw new ValidationFailed('Links to tax forms stored on the platform cannot be set manually');
+    }
+  };
+
+  /**
    * To use when a host admin manually provides an external link to a tax form.
    */
-  static manuallyMarkTaxFormAsReceived = (
+  static manuallyMarkTaxFormAsReceived = async (
     payee: Collective,
     user: User,
     documentLink: string,
@@ -324,6 +358,7 @@ class LegalDocument extends ModelWithPublicId<
       year?: number;
     } = {},
   ) => {
+    LegalDocument.assertManualDocumentLinkIsAllowed(documentLink);
     let legalDocument: LegalDocument;
     let previousStatus: LEGAL_DOCUMENT_REQUEST_STATUS | string | null;
     return sequelize
@@ -500,18 +535,68 @@ class LegalDocument extends ModelWithPublicId<
    * Whether the document can be downloaded.
    *
    * Some links have been manually set to arbitrary values (e.g. Google Drive) by the support team in the past. Only "Official" S3 links can be downloaded.
+   * The S3 key must belong to the document owner, otherwise anyone able to set `documentLink` could point it at another account's tax form.
    */
-  canDownload = function (): boolean {
+  canDownload = async function (): Promise<boolean> {
     if (!this.documentLink) {
       return false;
     }
 
+    let parsed: { bucket: string; key: string };
     try {
-      const { bucket } = parseS3Url(this.documentLink);
-      return bucket === getTaxFormsS3Bucket();
+      parsed = parseS3Url(this.documentLink);
     } catch {
       return false;
     }
+
+    if (parsed.bucket !== getTaxFormsS3Bucket() || !isTaxFormS3Key(parsed.key)) {
+      return false;
+    } else if (this.createdAt && new Date(this.createdAt) < TAX_FORM_KEYS_INCLUDE_ACCOUNT_ID_SINCE) {
+      // Keys of older documents may not include the account ID. The S3 metadata check in the download controller
+      // still applies to files that have a `collectiveId`.
+      return true;
+    }
+
+    const keyCollectiveId = getTaxFormS3KeyCollectiveId(parsed.key);
+    return Boolean(keyCollectiveId) && this.isOwnerOrMergedIntoOwner(keyCollectiveId);
+  };
+
+  /**
+   * Whether `collectiveId` is the document owner, or an account that was merged into it. Merging accounts
+   * (`server/lib/merge-accounts.ts`) moves legal documents to the target account without renaming their files,
+   * and marks the source account as deleted with `data.mergedIntoCollectiveId`.
+   */
+  isOwnerOrMergedIntoOwner = async function (collectiveId: number): Promise<boolean> {
+    if (!collectiveId || !this.CollectiveId) {
+      return false;
+    } else if (collectiveId === this.CollectiveId) {
+      return true;
+    }
+
+    const CollectiveModel = sequelize.models.Collective as unknown as {
+      findByPk: (
+        id: number,
+        options: unknown,
+      ) => Promise<{ deletedAt?: Date | null; data?: { mergedIntoCollectiveId?: number } } | null>;
+    };
+
+    let currentId = collectiveId;
+    for (let hop = 0; hop < MAX_ACCOUNT_MERGE_HOPS; hop++) {
+      const account = await CollectiveModel.findByPk(currentId, {
+        paranoid: false,
+        attributes: ['id', 'deletedAt', 'data'],
+      });
+      const mergedIntoId = account?.deletedAt ? Number(account.data?.mergedIntoCollectiveId) : null;
+      if (!mergedIntoId) {
+        return false;
+      } else if (mergedIntoId === this.CollectiveId) {
+        return true;
+      }
+
+      currentId = mergedIntoId;
+    }
+
+    return false;
   };
 
   markAsInvalid = async (
