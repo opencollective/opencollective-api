@@ -285,6 +285,54 @@ describe('webhook', () => {
       expect(disputeFeeTransaction.amount).to.eql(-1500);
     });
 
+    it('converts the dispute fee from Stripe units for zero-decimal currencies', async () => {
+      const chargeId = randStr('ch_');
+      const host = await fakeActiveHost({ currency: 'JPY' });
+      const collective = await fakeCollective({ HostCollectiveId: host.id, currency: 'JPY' });
+      const jpyOrder = await fakeOrder({
+        CreatedByUserId: user.id,
+        CollectiveId: collective.id,
+        totalAmount: 1000000,
+        currency: 'JPY',
+        PaymentMethodId: paymentMethod.id,
+      });
+      await fakeTransaction(
+        {
+          CreatedByUserId: user.id,
+          OrderId: jpyOrder.id,
+          CollectiveId: collective.id,
+          HostCollectiveId: host.id,
+          amount: 1000000,
+          currency: 'JPY',
+          hostCurrency: 'JPY',
+          kind: TransactionKind.CONTRIBUTION,
+          data: { charge: { id: chargeId } as Stripe.Charge },
+        },
+        { createDoubleEntry: true },
+      );
+
+      const createdEvent = cloneDeep(stripeMocks.webhook_dispute_created);
+      (createdEvent.data.object as Stripe.Dispute).charge = chargeId;
+      const closedEvent = cloneDeep(stripeMocks.webhook_dispute_lost);
+      const dispute = closedEvent.data.object as Stripe.Dispute;
+      dispute.charge = chargeId;
+      dispute.currency = 'jpy';
+      dispute.amount = 10000;
+      dispute.balance_transactions[0].fee_details[0].currency = 'jpy';
+      dispute.balance_transactions[0].fee_details[0].amount = 1500; // ¥1500: Stripe sends zero-decimal amounts unscaled
+
+      await webhook.chargeDisputeCreated(createdEvent);
+      await webhook.chargeDisputeClosed(closedEvent);
+
+      const transactions = await jpyOrder.getTransactions();
+      const disputeFeeTransaction = transactions.find(
+        tx => tx.kind === 'PAYMENT_PROCESSOR_DISPUTE_FEE' && tx.type === 'DEBIT',
+      );
+      expect(disputeFeeTransaction.currency).to.eql('JPY');
+      expect(disputeFeeTransaction.amount).to.eql(-150000);
+      expect(disputeFeeTransaction.amountInHostCurrency).to.eql(-150000);
+    });
+
     describe('when Stripe did not charge a dispute fee', () => {
       const withoutDisputeFee = (event: Stripe.Event, balanceTransactions?: Stripe.BalanceTransaction[]) => {
         const result = cloneDeep(event);
