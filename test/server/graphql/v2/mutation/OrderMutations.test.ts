@@ -29,6 +29,7 @@ import {
   fakeConnectedAccount,
   fakeEvent,
   fakeHost,
+  fakeIncognitoProfile,
   fakeManualPaymentProvider,
   fakeOrder,
   fakeOrganization,
@@ -1251,6 +1252,81 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
 
           expectRejected(await callCreateOrder({ order: guestOrder({ name: 'Display Name' }) }), /legal name/);
           const result = await callCreateOrder({ order: guestOrder({ legalName: 'Guest Legal Name' }) });
+          result.errors && console.error(result.errors);
+          expect(result.errors).to.not.exist;
+        });
+
+        it('saves the guest legal name on an existing guest profile', async () => {
+          const captcha = { token: '10000000-aaaa-bbbb-cccc-000000000001', provider: 'HCAPTCHA' };
+          const email = randEmail();
+          const guestOrder = (amount: number, guestInfo: Record<string, unknown> = {}) =>
+            orderTo(policyCollective, amount, { fromAccount: null, guestInfo: { email, captcha, ...guestInfo } });
+
+          // First contribution below the thresholds creates the guest profile, without a legal name
+          let result = await callCreateOrder({ order: guestOrder(10e2) });
+          result.errors && console.error(result.errors);
+          const guestUser = await models.User.findOne({ where: { email }, include: [{ association: 'collective' }] });
+          expect(guestUser.collective.legalName).to.be.null;
+
+          result = await callCreateOrder({ order: guestOrder(100e2, { legalName: 'Guest Legal Name' }) });
+          result.errors && console.error(result.errors);
+          expect(result.errors).to.not.exist;
+          await guestUser.collective.reload();
+          expect(guestUser.collective.legalName).to.eq('Guest Legal Name');
+        });
+
+        it('does not count the platform tip, and ignores free orders', async () => {
+          const user = await fakeUser();
+          const fromAccount = { legacyId: user.CollectiveId };
+          const withTip = orderTo(policyCollective, 99e2, { fromAccount, platformTipAmount: { valueInCents: 10e2 } });
+          let result = await callCreateOrder({ order: withTip }, user);
+          result.errors && console.error(result.errors);
+          expect(result.errors).to.not.exist;
+
+          // 99 contributed: a free order does not need the legal name, a paid one does
+          const freeTier = await fakeTier({ CollectiveId: policyCollective.id, amount: 0, amountType: 'FIXED' });
+          const freeOrder = orderTo(policyCollective, 0, { fromAccount, tier: { legacyId: freeTier.id } });
+          result = await callCreateOrder({ order: freeOrder }, user);
+          result.errors && console.error(result.errors);
+          expect(result.errors).to.not.exist;
+          expectRejected(
+            await callCreateOrder({ order: orderTo(policyCollective, 1e2, { fromAccount }) }, user),
+            /legal name/,
+          );
+        });
+
+        it('does not accept the saved address when the order replaces it with a location without an address', async () => {
+          const user = await fakeUser(undefined, { legalName: 'Valid Legal Name' });
+          await user.collective.setLocation({ country: 'FR', address: '1 rue de la Paix, 75002 Paris' });
+          const fromAccount = { legacyId: user.CollectiveId };
+
+          expectRejected(
+            await callCreateOrder(
+              {
+                order: orderTo(policyCollective, 500e2, {
+                  fromAccount,
+                  fromAccountInfo: { location: { country: 'DE' } },
+                }),
+              },
+              user,
+            ),
+            /requires your address for contributions/,
+          );
+          expect((await user.collective.getLocation()).address).to.eq('1 rue de la Paix, 75002 Paris');
+
+          // Without a new location, the saved address counts
+          const result = await callCreateOrder({ order: orderTo(policyCollective, 500e2, { fromAccount }) }, user);
+          result.errors && console.error(result.errors);
+          expect(result.errors).to.not.exist;
+        });
+
+        it('uses the legal name of the main profile for incognito contributions', async () => {
+          const user = await fakeUser(undefined, { legalName: 'Valid Legal Name' });
+          const incognito = await fakeIncognitoProfile(user);
+          const result = await callCreateOrder(
+            { order: orderTo(policyCollective, 100e2, { fromAccount: { legacyId: incognito.id } }) },
+            user,
+          );
           result.errors && console.error(result.errors);
           expect(result.errors).to.not.exist;
         });

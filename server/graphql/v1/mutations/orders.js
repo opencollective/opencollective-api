@@ -69,6 +69,15 @@ const mustUpdateNames = (fromAccount, fromAccountInfo) => {
 };
 
 /**
+ * Whether the info sent with an order is saved on the contributing profile: always, unless it's a guest contribution
+ * for an existing account (we don't want to let guests update the profile of an existing account that they may not own)
+ */
+const canUpdateProfileInfo = (fromAccount, isGuest) => {
+  const isVerifiedProfile = !fromAccount.data?.isGuest;
+  return !isGuest || !isVerifiedProfile;
+};
+
+/**
  * Checks that the profile has all requirements for this contribution (name, address, etc) and updates
  * it if necessary. Must be called **after** checking permissions and authentication!
  */
@@ -77,17 +86,19 @@ const checkAndUpdateProfileInfo = async (order, fromAccount, isGuest) => {
   const accountUpdatePayload = {};
   const existingLocation = await fromAccount.getLocation();
   const location = fromAccountInfo?.location || guestInfo?.location || existingLocation;
+  // Same sources as the contributor info check (`assertContributorInfoForOrder`)
+  const nameInfo = {
+    name: fromAccountInfo?.name,
+    legalName: fromAccountInfo?.legalName || guestInfo?.legalName,
+  };
 
-  // Update account with new info, unless we're making a guest contribution for an existing account
-  // (we don't want to let guests update the profile of an existing account that they may not own)
-  const isVerifiedProfile = !fromAccount.data?.isGuest;
-  if (!isGuest || !isVerifiedProfile) {
+  if (canUpdateProfileInfo(fromAccount, isGuest)) {
     if (mustUpdateLocation(existingLocation, location)) {
       await fromAccount.setLocation(location);
     }
-    if (mustUpdateNames(fromAccount, fromAccountInfo)) {
-      accountUpdatePayload.name = fromAccountInfo.name || fromAccount.name;
-      accountUpdatePayload.legalName = fromAccountInfo.legalName || fromAccount.legalName;
+    if (mustUpdateNames(fromAccount, nameInfo)) {
+      accountUpdatePayload.name = nameInfo.name || fromAccount.name;
+      accountUpdatePayload.legalName = nameInfo.legalName || fromAccount.legalName;
     }
     if (!isEmpty(accountUpdatePayload)) {
       await fromAccount.update(accountUpdatePayload);
@@ -454,13 +465,14 @@ export async function createOrder(order, req) {
     await assertContributorInfoForOrder({
       host,
       fromCollective,
-      totalAmount: order.totalAmount,
+      amount: (order.totalAmount || 0) - (order.taxAmount || 0) - (order.platformTipAmount || 0),
       currency,
       interval: order.interval,
       providedInfo: {
         legalName: order.fromAccountInfo?.legalName || order.guestInfo?.legalName,
         location: order.fromAccountInfo?.location || order.guestInfo?.location,
       },
+      profileWillBeUpdated: canUpdateProfileInfo(fromCollective, isGuest),
     });
 
     // Update the contributing profile with legal name / location
