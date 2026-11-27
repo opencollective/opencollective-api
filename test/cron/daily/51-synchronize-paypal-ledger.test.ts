@@ -39,8 +39,8 @@ describe('cron/daily/51-synchronize-paypal-ledger', () => {
   });
 
   /** Create a host with a PayPal connected account and stub getHostsWithPayPalConnected */
-  const setupHost = async () => {
-    const host = await fakeHost();
+  const setupHost = async (hostData = {}) => {
+    const host = await fakeHost(hostData);
     await fakeConnectedAccount({ CollectiveId: host.id, service: 'paypal', token: 'test-paypal-token' });
     sandbox.stub(PaypalLib, 'getHostsWithPayPalConnected').resolves([host]);
     return host;
@@ -513,6 +513,69 @@ describe('cron/daily/51-synchronize-paypal-ledger', () => {
         where: { RefundTransactionId: hostB.transaction.id },
       });
       expect(refundTransaction, 'host B refund transaction should exist').to.exist;
+    });
+
+    it('records a full refund when the collective currency differs from the host currency', async () => {
+      const host = await setupHost({ currency: 'USD' });
+      const collective = await fakeCollective({ HostCollectiveId: host.id, currency: 'EUR' });
+      const paymentMethod = await fakePaymentMethod({
+        service: PAYMENT_METHOD_SERVICE.PAYPAL,
+        type: PAYMENT_METHOD_TYPE.PAYMENT,
+      });
+      const order = await fakeOrder({
+        CollectiveId: collective.id,
+        PaymentMethodId: paymentMethod.id,
+        currency: 'EUR',
+        totalAmount: 1000,
+      });
+      const captureId = 'CAPTURE-EUR-001';
+
+      // 10 EUR contribution on a USD host (fx 1.1) → 11 USD in host currency, 0.55 USD fee
+      const originalTransaction = await fakeTransaction(
+        {
+          type: TransactionTypes.CREDIT,
+          kind: TransactionKind.CONTRIBUTION,
+          isRefund: false,
+          RefundTransactionId: null,
+          OrderId: order.id,
+          CollectiveId: collective.id,
+          HostCollectiveId: host.id,
+          PaymentMethodId: paymentMethod.id,
+          amount: 1000,
+          currency: 'EUR',
+          hostCurrency: 'USD',
+          hostCurrencyFxRate: 1.1,
+          amountInHostCurrency: 1100,
+          paymentProcessorFeeInHostCurrency: -55,
+          data: { paypalCaptureId: captureId },
+        },
+        { createDoubleEntry: true },
+      );
+
+      stubListTransactions(captureId, 'T0006', 'REFUND-EUR-001');
+
+      sandbox.stub(PaypalApi, 'paypalRequestV2').callsFake(async url => {
+        if (url === 'payments/refunds/REFUND-EUR-001') {
+          // PayPal returns amounts in the capture currency (EUR)
+          return {
+            id: 'REFUND-EUR-001',
+            status: 'COMPLETED',
+            seller_payable_breakdown: {
+              paypal_fee: { value: '0.50', currency_code: 'EUR' },
+              total_refunded_amount: { value: '10.00', currency_code: 'EUR' },
+            },
+          };
+        }
+        throw new Error(`Unexpected PayPal API call: ${url}`);
+      });
+
+      await run();
+
+      const refundTransaction = await models.Transaction.findOne({
+        where: { RefundTransactionId: originalTransaction.id },
+      });
+      expect(refundTransaction, 'full refund should be recorded, not flagged as partial').to.exist;
+      expect(refundTransaction.isRefund).to.be.true;
     });
   });
 });

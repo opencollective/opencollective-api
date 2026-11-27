@@ -11,7 +11,6 @@ import { QueryTypes } from 'sequelize';
 
 import FEATURE from '../../server/constants/feature';
 import OrderStatuses from '../../server/constants/order-status';
-import { floatAmountToCents } from '../../server/lib/currency';
 import logger from '../../server/lib/logger';
 import { createRefundTransaction } from '../../server/lib/payments';
 import { getHostsWithPayPalConnected, listPayPalTransactions } from '../../server/lib/paypal';
@@ -485,9 +484,11 @@ const processHost = async (host, periodStart: moment.Moment, periodEnd: moment.M
           get(paypalPayload, 'seller_payable_breakdown.paypal_fee.value', '0.00') as string,
         );
 
-        // Flag partial refunds/reversals for manual investigation
-        const totalRefundedCents = floatAmountToCents(
-          parseFloat(get(paypalPayload, 'seller_payable_breakdown.total_refunded_amount.value', '0') as string),
+        // Flag partial refunds/reversals for manual investigation. PayPal returns the refunded amount in the
+        // capture currency, so convert it to the host currency before comparing it with the ledger.
+        const totalRefundedCents = getRefundedPaypalFeeInHostCurrency(
+          transaction,
+          get(paypalPayload, 'seller_payable_breakdown.total_refunded_amount.value', '0') as string,
         );
         const originalProcessorFee = Math.abs(
           transaction.paymentProcessorFeeInHostCurrency ||
