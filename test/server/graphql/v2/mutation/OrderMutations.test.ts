@@ -200,6 +200,7 @@ const updateOrderMutation = gql`
     $platformTipAmount: AmountInput
     $tier: TierReferenceInput
     $paymentMethod: PaymentMethodReferenceInput
+    $paypalSubscriptionId: String
   ) {
     updateOrder(
       order: $order
@@ -207,6 +208,7 @@ const updateOrderMutation = gql`
       platformTipAmount: $platformTipAmount
       tier: $tier
       paymentMethod: $paymentMethod
+      paypalSubscriptionId: $paypalSubscriptionId
     ) {
       id
       status
@@ -3768,6 +3770,48 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
 
         expect(result.errors).to.exist;
         expect(result.errors[0].message).to.match(/Changing the payment method is not allowed/i);
+      });
+
+      it('does not update the amount of a collective balance recurring contribution when switching to PayPal is rejected', async () => {
+        const host = await fakeActiveHost();
+        const fromCollective = await fakeCollective({ HostCollectiveId: host.id });
+        const toCollective = await fakeCollective({ HostCollectiveId: host.id });
+        const collectiveAdmin = await fakeUser();
+        await fromCollective.addUserWithRole(collectiveAdmin, roles.ADMIN);
+
+        const collectiveBalancePaymentMethod = await models.PaymentMethod.findOne({
+          where: { type: PAYMENT_METHOD_TYPE.COLLECTIVE, CollectiveId: fromCollective.id },
+        });
+
+        const collectiveOrder = await fakeOrder(
+          {
+            CreatedByUserId: collectiveAdmin.id,
+            FromCollectiveId: fromCollective.id,
+            CollectiveId: toCollective.id,
+            PaymentMethodId: collectiveBalancePaymentMethod.id,
+            status: OrderStatuses.ACTIVE,
+            totalAmount: 1000,
+            platformTipAmount: 0,
+            currency: 'USD',
+            TierId: null,
+          },
+          { withSubscription: true },
+        );
+
+        const result = await graphqlQueryV2(
+          updateOrderMutation,
+          {
+            order: { id: idEncode(collectiveOrder.id, 'order') },
+            amount: { valueInCents: 5000, currency: 'USD' },
+            paypalSubscriptionId: 'I-XXXXXXXXXXXX',
+          },
+          collectiveAdmin,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.match(/Changing the payment method is not allowed/i);
+        await collectiveOrder.reload();
+        expect(collectiveOrder.totalAmount).to.eq(1000);
       });
 
       it('accepts publicId in PaymentMethodReferenceInput', async () => {

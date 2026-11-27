@@ -535,6 +535,11 @@ const orderMutations = {
       // Check 2FA
       await twoFactorAuthLib.enforceForAccount(req, order.fromCollective, { onlyAskOnLogin: true });
 
+      // Check before updating the details below, so a rejected payment method change doesn't leave a partial update
+      if (hasPaymentMethodChanged && isBalanceOnlyCollectiveType(order.fromCollective.type)) {
+        throw new ValidationFailed('Changing the payment method is not allowed for this contribution');
+      }
+
       // PayPal bills via the external subscription plan; amount/tier changes must go through PayPal approval.
       if (haveDetailsChanged && isPaypalSubscriptionPaymentMethod(order.paymentMethod) && !args.paypalSubscriptionId) {
         throw new ValidationFailed(
@@ -582,10 +587,6 @@ const orderMutations = {
       }
 
       if (hasPaymentMethodChanged) {
-        if (isBalanceOnlyCollectiveType(order.fromCollective.type)) {
-          throw new ValidationFailed('Changing the payment method is not allowed for this contribution');
-        }
-
         const previousOrderStatus = order.status;
         if (args.paypalSubscriptionId) {
           // Update from PayPal subscription ID
