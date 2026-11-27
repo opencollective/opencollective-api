@@ -1,5 +1,5 @@
 import config from 'config';
-import { get, pick, truncate } from 'lodash';
+import { get, isNil, pick, truncate } from 'lodash';
 import moment from 'moment';
 
 import { SupportedCurrency } from '../../constants/currencies';
@@ -457,7 +457,8 @@ const verifySubscription = async (order: Order, paypalSubscription: PayPalSubscr
   } else if (paypalSubscription.plan_overridden) {
     // Overridden plan attributes (e.g. pricing) mean PayPal would not charge `plan.amount`
     throw new Error('PayPal subscriptions with a customized plan are not supported');
-  } else if (paypalSubscription.quantity && Number(paypalSubscription.quantity) !== 1) {
+  } else if (!isNil(paypalSubscription.quantity) && Number(paypalSubscription.quantity) !== 1) {
+    // A missing quantity defaults to 1 on PayPal's side; anything else (including "" or a non-numeric value) is rejected
     throw new Error('PayPal subscription quantity must be 1');
   }
 
