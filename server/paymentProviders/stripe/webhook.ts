@@ -1019,7 +1019,10 @@ export const chargeDisputeClosed = async (event: Stripe.Event) => {
         data: { dispute },
         refundKind: RefundKind.DISPUTE,
       });
+    }
 
+    // The dispute is settled, whether or not Stripe charged a dispute fee
+    if (dispute.status === 'won' || dispute.status === 'lost') {
       const user = chargeTransaction.createdByUser;
       const userHasDisputedOrders = await user.hasDisputedOrders();
       if (!userHasDisputedOrders) {
