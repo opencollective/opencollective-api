@@ -404,6 +404,23 @@ describe('server/lib/order-tier-change', () => {
       expect(memberships.map(m => m.TierId).sort()).to.deep.eq([goldTier.id, silverTier.id].sort());
     });
 
+    it('keeps the source membership when a paused contribution relies on it', async () => {
+      const order = await createPaidRecurringOrder(100000, goldTier);
+      // A paused recurring contribution on the same tier, which resumes with its membership
+      await fakeOrder({
+        CreatedByUserId: order.CreatedByUserId,
+        FromCollectiveId: order.FromCollectiveId,
+        CollectiveId: order.CollectiveId,
+        TierId: goldTier.id,
+        totalAmount: 100000,
+        status: OrderStatuses.PAUSED,
+      });
+
+      await syncBackerMembershipTier(order, goldTier.id, silverTier.id);
+      const memberships = await getBackerMemberships(order);
+      expect(memberships.map(m => m.TierId).sort()).to.deep.eq([goldTier.id, silverTier.id].sort());
+    });
+
     it('removes the source membership when the target one already exists', async () => {
       const order = await createPaidRecurringOrder(100000, goldTier);
       await models.Member.create({

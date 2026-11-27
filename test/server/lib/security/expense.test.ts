@@ -616,6 +616,96 @@ describe('lib/security/expense', () => {
       expect(getLegalDocumentChecks(checks)).to.be.empty;
     });
 
+    it('reports a LOW check when the legal document name only partially matches the payee name', async () => {
+      const payee = await createPayeeWithLocation({
+        legalName: 'Acme Inc Holdings',
+        countryISO: 'FR',
+        city: 'Paris',
+        postalCode: '75001',
+      });
+      await fakeLegalDocument({
+        CollectiveId: payee.id,
+        service: LEGAL_DOCUMENT_SERVICE.OPENCOLLECTIVE,
+        requestStatus: LEGAL_DOCUMENT_REQUEST_STATUS.RECEIVED,
+        data: buildW9LegalDocumentData({
+          businessName: 'Acme Inc',
+          signerFirstName: 'Jane',
+          signerLastName: 'Doe',
+          country: 'FR',
+          city: 'Paris',
+          postalCode: '75001',
+          taxIdNumber: '12-3456789',
+        }),
+      });
+
+      const expense = await createExpenseForPayee(payee);
+      const checks = await checkExpense(expense, { req: makeRequest() as any });
+      const legalDocumentChecks = getLegalDocumentChecks(checks);
+
+      expect(legalDocumentChecks).to.have.length(1);
+      expect(legalDocumentChecks[0]).to.containSubset({
+        scope: 'LEGAL_DOCUMENT',
+        level: 'LOW',
+        message: 'Legal document name partially matches the payee name',
+        details:
+          'The name on the legal document ("Acme Inc") only partially matches the payee name ("Acme Inc Holdings").',
+      });
+    });
+
+    it('reports a LOW check when the legal document name only partially matches the bank account holder name', async () => {
+      const payee = await createPayeeWithLocation({
+        legalName: 'Acme Inc',
+        countryISO: 'FR',
+        city: 'Paris',
+        postalCode: '75001',
+      });
+      await fakeLegalDocument({
+        CollectiveId: payee.id,
+        service: LEGAL_DOCUMENT_SERVICE.OPENCOLLECTIVE,
+        requestStatus: LEGAL_DOCUMENT_REQUEST_STATUS.RECEIVED,
+        data: buildW9LegalDocumentData({
+          businessName: 'Acme Inc',
+          signerFirstName: 'Jane',
+          signerLastName: 'Doe',
+          country: 'FR',
+          city: 'Paris',
+          postalCode: '75001',
+          taxIdNumber: '12-3456789',
+        }),
+      });
+      const payoutMethod = await fakePayoutMethod({
+        type: PayoutMethodTypes.BANK_ACCOUNT,
+        CollectiveId: payee.id,
+        data: {
+          accountHolderName: 'Jane Marie Doe',
+          currency: 'USD',
+          type: 'aba',
+          details: {
+            address: { country: 'FR', city: 'Paris', postCode: '75001', firstLine: '1 Main St', state: 'IDF' },
+          },
+        },
+      });
+
+      const host = await createHost();
+      const collective = await createProcessingCollective(host);
+      const expense = await fakeExpense({
+        CollectiveId: collective.id,
+        FromCollectiveId: payee.id,
+        PayoutMethodId: payoutMethod.id,
+      });
+      const checks = await checkExpense(expense, { req: makeRequest() as any });
+      const legalDocumentChecks = getLegalDocumentChecks(checks);
+
+      expect(legalDocumentChecks).to.have.length(1);
+      expect(legalDocumentChecks[0]).to.containSubset({
+        scope: 'LEGAL_DOCUMENT',
+        level: 'LOW',
+        message: 'Legal document name partially matches the payout method account holder name',
+        details:
+          'The name on the legal document ("Jane Doe") only partially matches the payout method account holder name ("Jane Marie Doe").',
+      });
+    });
+
     it('does not flag anything when the legal document matches the payee', async () => {
       const payee = await createPayeeWithLocation({
         legalName: 'Acme Inc',

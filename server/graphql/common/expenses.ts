@@ -63,6 +63,7 @@ import { handleExpensePayoutMethodChange } from '../../lib/kyc/expenses/kyc-expe
 import logger from '../../lib/logger';
 import { fetchExpenseCategoryPredictions } from '../../lib/ml-service';
 import { lockUntilResolved } from '../../lib/mutex';
+import { areNamesMatching } from '../../lib/name-matching';
 import { createRefundTransaction } from '../../lib/payments';
 import { isBlockedForUnpaidPlatformBilling } from '../../lib/platform-subscriptions';
 import { getPolicy } from '../../lib/policies';
@@ -1124,7 +1125,28 @@ export const canApprove: ExpensePermissionEvaluator = async (
       usedPolicy = (collectivePolicyApplies && collectivePolicy) || (hostPolicyApplies && hostPolicy);
     }
 
-    const authorCannotApprove = usedPolicy && isExpenseAuthor && expense.amount >= usedPolicy.amountInCents;
+    let authorCannotApprove = false;
+    if (usedPolicy && isExpenseAuthor) {
+      // The policy limit is expressed in the host (or collective) currency
+      let amountInPolicyCurrency = expense.amount;
+      if (expense.currency && expense.currency !== currency) {
+        try {
+          amountInPolicyCurrency = await req.loaders.CurrencyExchangeRate.convert.load({
+            amount: expense.amount,
+            fromCurrency: expense.currency as SupportedCurrency,
+            toCurrency: currency as SupportedCurrency,
+          });
+        } catch (e) {
+          reportErrorToSentry(e, { req, user: req.remoteUser, feature: FEATURE.USE_EXPENSES });
+          amountInPolicyCurrency = NaN;
+        }
+      }
+
+      // Treat a failed conversion as above the limit
+      authorCannotApprove =
+        !Number.isFinite(amountInPolicyCurrency) || amountInPolicyCurrency >= usedPolicy.amountInCents;
+    }
+
     if (authorCannotApprove) {
       if (options?.throw) {
         throw new Forbidden(
@@ -1604,6 +1626,79 @@ export const canSeeExpenseOnHoldFlag = async (req: express.Request, expense: Exp
 
 // ---- Expense actions ----
 
+const assertExpenseStatusUnchanged = (
+  currentExpense: Expense | null,
+  expectedStatus: Expense['status'],
+  { ownsSoftLock = false } = {},
+): void => {
+  if (!currentExpense) {
+    throw new NotFound('Expense not found');
+  } else if (currentExpense.data?.isLocked && !ownsSoftLock) {
+    throw new ValidationFailed('This expense is currently being processed, please try again later');
+  } else if (currentExpense.status !== expectedStatus) {
+    throw new ValidationFailed(
+      `The status of this expense changed (${currentExpense.status}) while processing the request, please refresh and try again`,
+    );
+  }
+};
+
+/**
+ * For transitions that call a payment provider before writing the new status (scheduling, unscheduling): hold the
+ * processing soft lock (see `lockExpense`) for the whole operation, so that no other status transition or payment can
+ * change the expense while the provider side effects (Wise transfer or batch cancellation, PayPal 2FA rolling limit)
+ * are made, and check that the expense did not change since it was loaded before making them.
+ */
+const withExpenseLockedForProviderCall = async <T>(expense: Expense, callback: () => Promise<T>): Promise<T> => {
+  const expectedStatus = expense.status;
+  const result = await lockExpense(expense.id, async () => {
+    // Reload so that `expense.data` includes the `isLocked` flag: payment providers write `{ ...expense.data, ... }`
+    // from this instance, which would otherwise release the lock while they are still running.
+    await expense.reload();
+    assertExpenseStatusUnchanged(expense, expectedStatus, { ownsSoftLock: true });
+    return callback();
+  });
+
+  // `lockExpense` released the lock through another instance
+  await expense.reload();
+  return result;
+};
+
+/**
+ * Updates an expense's status while holding a row lock, making sure that neither the status nor the
+ * processing soft lock (see `lockExpense`) changed since `expense` was loaded. Without this, a status
+ * transition computed from a stale snapshot (e.g. `APPROVED -> PENDING`) could overwrite a concurrent
+ * payment (`PAID`), allowing the expense to be approved and paid a second time.
+ *
+ * If a concurrent request already moved the expense to the target status (double click, client retry), nothing is
+ * written and `updated` is `false`, so that callers don't record the transition twice.
+ */
+const updateExpenseStatusWithLock = async (
+  expense: Expense,
+  values: Parameters<Expense['update']>[0] & { status: Expense['status'] },
+  {
+    // Pass this explicitly when `expense` may have been reloaded since the permission checks (e.g. by a payment
+    // provider), otherwise a status changed concurrently in the meantime would be silently accepted.
+    expectedStatus = expense.status,
+    // Set when called from `withExpenseLockedForProviderCall`, which holds the processing soft lock itself
+    ownsSoftLock = false,
+  }: { expectedStatus?: Expense['status']; ownsSoftLock?: boolean } = {},
+): Promise<{ expense: Expense; updated: boolean }> => {
+  return sequelize.transaction(async transaction => {
+    const lockedExpense = await models.Expense.findByPk(expense.id, { lock: true, transaction });
+    if (
+      lockedExpense &&
+      (!lockedExpense.data?.isLocked || ownsSoftLock) &&
+      expectedStatus !== values.status &&
+      lockedExpense.status === values.status
+    ) {
+      return { expense: lockedExpense, updated: false };
+    }
+
+    assertExpenseStatusUnchanged(lockedExpense, expectedStatus, { ownsSoftLock });
+    return { expense: await expense.update(values, { transaction }), updated: true };
+  });
+};
+
 export const approveExpense = async (req: express.Request, expense: Expense): Promise<Expense> => {
   if (expense.status === 'APPROVED') {
     return expense;
@@ -1611,8 +1706,13 @@ export const approveExpense = async (req: express.Request, expense: Expense): Pr
     throw new Forbidden();
   }
 
-  const updatedExpense = await expense.update({ status: 'APPROVED', lastEditedById: req.remoteUser.id });
-  await expense.createActivity(activities.COLLECTIVE_EXPENSE_APPROVED, req.remoteUser);
+  const { expense: updatedExpense, updated } = await updateExpenseStatusWithLock(expense, {
+    status: 'APPROVED',
+    lastEditedById: req.remoteUser.id,
+  });
+  if (updated) {
+    await expense.createActivity(activities.COLLECTIVE_EXPENSE_APPROVED, req.remoteUser);
+  }
   return updatedExpense;
 };
 
@@ -1623,8 +1723,13 @@ export const unapproveExpense = async (req: express.Request, expense: Expense): 
     throw new Forbidden();
   }
 
-  const updatedExpense = await expense.update({ status: 'PENDING', lastEditedById: req.remoteUser.id });
-  await expense.createActivity(activities.COLLECTIVE_EXPENSE_UNAPPROVED, req.remoteUser);
+  const { expense: updatedExpense, updated } = await updateExpenseStatusWithLock(expense, {
+    status: 'PENDING',
+    lastEditedById: req.remoteUser.id,
+  });
+  if (updated) {
+    await expense.createActivity(activities.COLLECTIVE_EXPENSE_UNAPPROVED, req.remoteUser);
+  }
   return updatedExpense;
 };
 
@@ -1635,8 +1740,13 @@ export const requestExpenseReApproval = async (req: express.Request, expense: Ex
     throw new Forbidden();
   }
 
-  const updatedExpense = await expense.update({ status: 'PENDING', lastEditedById: req.remoteUser.id });
-  await expense.createActivity(activities.COLLECTIVE_EXPENSE_RE_APPROVAL_REQUESTED, req.remoteUser);
+  const { expense: updatedExpense, updated } = await updateExpenseStatusWithLock(expense, {
+    status: 'PENDING',
+    lastEditedById: req.remoteUser.id,
+  });
+  if (updated) {
+    await expense.createActivity(activities.COLLECTIVE_EXPENSE_RE_APPROVAL_REQUESTED, req.remoteUser);
+  }
   return updatedExpense;
 };
 
@@ -1647,12 +1757,14 @@ export const markExpenseAsIncomplete = async (req: express.Request, expense: Exp
     throw new Forbidden();
   }
 
-  const updatedExpense = await expense.update({
+  const { expense: updatedExpense, updated } = await updateExpenseStatusWithLock(expense, {
     status: 'INCOMPLETE',
     lastEditedById: req.remoteUser.id,
     onHold: false,
   });
-  await expense.createActivity(activities.COLLECTIVE_EXPENSE_MARKED_AS_INCOMPLETE, req.remoteUser);
+  if (updated) {
+    await expense.createActivity(activities.COLLECTIVE_EXPENSE_MARKED_AS_INCOMPLETE, req.remoteUser);
+  }
   return updatedExpense;
 };
 
@@ -1663,12 +1775,14 @@ export const rejectExpense = async (req: express.Request, expense: Expense): Pro
     throw new Forbidden();
   }
 
-  const updatedExpense = await expense.update({
+  const { expense: updatedExpense, updated } = await updateExpenseStatusWithLock(expense, {
     status: 'REJECTED',
     lastEditedById: req.remoteUser.id,
     onHold: false,
   });
-  await expense.createActivity(activities.COLLECTIVE_EXPENSE_REJECTED, req.remoteUser);
+  if (updated) {
+    await expense.createActivity(activities.COLLECTIVE_EXPENSE_REJECTED, req.remoteUser);
+  }
   return updatedExpense;
 };
 
@@ -1711,11 +1825,14 @@ export const markExpenseAsSpam = async (req: express.Request, expense: Expense):
     throw new Forbidden();
   }
 
-  const updatedExpense = await expense.update({
+  const { expense: updatedExpense, updated } = await updateExpenseStatusWithLock(expense, {
     status: 'SPAM',
     lastEditedById: req.remoteUser.id,
     onHold: false,
   });
+  if (!updated) {
+    return updatedExpense;
+  }
 
   // Limit the user so they can't submit expenses in the future
   // This is intentional moderation behavior: USE_EXPENSES is limited platform-wide for the submitter
@@ -1938,50 +2055,59 @@ export const scheduleExpenseForPayment = async (
     throw new Forbidden("You're authenticated but you can't schedule this expense for payment");
   }
 
-  const host = expense.collective.host || (await expense.collective.getHostCollective({ loaders: req.loaders }));
-  if (expense.currency !== expense.collective.currency && !hasMultiCurrency(expense.collective, host)) {
-    throw new Forbidden('Multi-currency expenses are not enabled for this collective');
-  }
-
-  // Update the feesPayer right away because the rest of the process (i.e create transactions) depends on this
-  if (options.feesPayer && options.feesPayer !== expense.feesPayer) {
-    await expense.update({ feesPayer: options.feesPayer });
-  }
-
-  expense.PayoutMethod = await req.loaders.PayoutMethod.byId.load(expense.PayoutMethodId);
-  await checkHasBalanceToPayExpense(host, expense, expense.PayoutMethod);
-  // Scheduling a PayPal payout is what authorizes it: the hourly cron pays it without anyone else involved. A Wise
-  // payout only moves money when the batch is paid, which counts it towards the rolling limit at that point.
-  const countedTowards2FARollingLimit = await enforcePayout2FA(req, host, expense, {
-    isAutomatedPayout: expense.PayoutMethod.type === PayoutMethodTypes.PAYPAL,
-  });
-
-  let updatedExpense: Expense;
-  try {
-    // If Wise, add expense to a new batch group
-    if (expense.PayoutMethod.type === PayoutMethodTypes.BANK_ACCOUNT) {
-      await checkFeatureAccess(host, FEATURE.TRANSFERWISE, { loaders: req.loaders });
-      await paymentProviders.transferwise.scheduleExpenseForPayment(expense, options.transferDetails, req.remoteUser);
-    }
-    // If PayPal, check if host is connected to PayPal
-    else if (expense.PayoutMethod.type === PayoutMethodTypes.PAYPAL) {
-      await checkFeatureAccess(host, FEATURE.PAYPAL_PAYOUTS, { loaders: req.loaders });
-      await host.getAccountForPaymentProvider(Service.PAYPAL);
+  // The Wise provider reloads `expense`, so keep the status the permission checks above were made against
+  const statusBeforeScheduling = expense.status;
+  return withExpenseLockedForProviderCall(expense, async () => {
+    const host = expense.collective.host || (await expense.collective.getHostCollective({ loaders: req.loaders }));
+    if (expense.currency !== expense.collective.currency && !hasMultiCurrency(expense.collective, host)) {
+      throw new Forbidden('Multi-currency expenses are not enabled for this collective');
     }
 
-    updatedExpense = await expense.update({
-      status: 'SCHEDULED_FOR_PAYMENT',
-      lastEditedById: req.remoteUser.id,
-      onHold: false,
+    // Update the feesPayer right away because the rest of the process (i.e create transactions) depends on this
+    if (options.feesPayer && options.feesPayer !== expense.feesPayer) {
+      await expense.update({ feesPayer: options.feesPayer });
+    }
+
+    expense.PayoutMethod = await req.loaders.PayoutMethod.byId.load(expense.PayoutMethodId);
+    await checkHasBalanceToPayExpense(host, expense, expense.PayoutMethod);
+    // Scheduling a PayPal payout is what authorizes it: the hourly cron pays it without anyone else involved. A Wise
+    // payout only moves money when the batch is paid, which counts it towards the rolling limit at that point.
+    const countedTowards2FARollingLimit = await enforcePayout2FA(req, host, expense, {
+      isAutomatedPayout: expense.PayoutMethod.type === PayoutMethodTypes.PAYPAL,
     });
-  } catch (error) {
-    // Nothing was scheduled: the amount does not count towards the rolling limit
-    await releaseExpensePayout2FALimit(req, countedTowards2FARollingLimit);
-    throw error;
-  }
 
-  await expense.createActivity(activities.COLLECTIVE_EXPENSE_SCHEDULED_FOR_PAYMENT, req.remoteUser);
-  return updatedExpense;
+    let result: Awaited<ReturnType<typeof updateExpenseStatusWithLock>>;
+    try {
+      // If Wise, add expense to a new batch group
+      if (expense.PayoutMethod.type === PayoutMethodTypes.BANK_ACCOUNT) {
+        await checkFeatureAccess(host, FEATURE.TRANSFERWISE, { loaders: req.loaders });
+        await paymentProviders.transferwise.scheduleExpenseForPayment(expense, options.transferDetails, req.remoteUser);
+      }
+      // If PayPal, check if host is connected to PayPal
+      else if (expense.PayoutMethod.type === PayoutMethodTypes.PAYPAL) {
+        await checkFeatureAccess(host, FEATURE.PAYPAL_PAYOUTS, { loaders: req.loaders });
+        await host.getAccountForPaymentProvider(Service.PAYPAL);
+      }
+
+      result = await updateExpenseStatusWithLock(
+        expense,
+        { status: 'SCHEDULED_FOR_PAYMENT', lastEditedById: req.remoteUser.id, onHold: false },
+        { expectedStatus: statusBeforeScheduling, ownsSoftLock: true },
+      );
+    } catch (error) {
+      // Nothing was scheduled: the amount does not count towards the rolling limit
+      await releaseExpensePayout2FALimit(req, countedTowards2FARollingLimit);
+      throw error;
+    }
+
+    if (result.updated) {
+      await expense.createActivity(activities.COLLECTIVE_EXPENSE_SCHEDULED_FOR_PAYMENT, req.remoteUser);
+    } else {
+      // The status changed in the meantime: this request did not schedule anything
+      await releaseExpensePayout2FALimit(req, countedTowards2FARollingLimit);
+    }
+    return result.expense;
+  });
 };
 
 export const unscheduleExpensePayment = async (req: express.Request, expense: Expense): Promise<Expense> => {
@@ -1989,22 +2115,32 @@ export const unscheduleExpensePayment = async (req: express.Request, expense: Ex
     throw new BadRequest("Expense is not scheduled for payment or you don't have authorization to unschedule it");
   }
 
-  // If Wise, add expense to a new batch group
-  const payoutMethod = await expense.getPayoutMethod();
-  if (payoutMethod.type === PayoutMethodTypes.BANK_ACCOUNT) {
-    const host = await loadHostForExpense(req, expense);
-    await checkFeatureAccess(host, FEATURE.TRANSFERWISE, { loaders: req.loaders });
-    await paymentProviders.transferwise.unscheduleExpenseForPayment(expense);
-  }
+  return withExpenseLockedForProviderCall(expense, async () => {
+    // If Wise, add expense to a new batch group
+    let expectedStatus = expense.status;
+    const payoutMethod = await expense.getPayoutMethod();
+    if (payoutMethod.type === PayoutMethodTypes.BANK_ACCOUNT) {
+      const host = await loadHostForExpense(req, expense);
+      await checkFeatureAccess(host, FEATURE.TRANSFERWISE, { loaders: req.loaders });
+      await paymentProviders.transferwise.unscheduleExpenseForPayment(expense);
+      // The Wise provider moves every expense of the canceled batch (including this one) back to APPROVED
+      // through other instances: refresh ours, and expect the status the provider committed.
+      await expense.reload();
+      expectedStatus = ExpenseStatus.APPROVED;
+    }
 
-  const updatedExpense = await expense.update({
-    status: 'APPROVED',
-    lastEditedById: req.remoteUser.id,
+    const { expense: updatedExpense, updated } = await updateExpenseStatusWithLock(
+      expense,
+      { status: 'APPROVED', lastEditedById: req.remoteUser.id },
+      { expectedStatus, ownsSoftLock: true },
+    );
+
+    if (updated) {
+      await expense.createActivity(activities.COLLECTIVE_EXPENSE_UNSCHEDULED_FOR_PAYMENT, req.remoteUser);
+    }
+
+    return updatedExpense;
   });
-
-  await expense.createActivity(activities.COLLECTIVE_EXPENSE_UNSCHEDULED_FOR_PAYMENT, req.remoteUser);
-
-  return updatedExpense;
 };
 
 /** Check expense's items values, throw if something's wrong */
@@ -2588,7 +2724,9 @@ const tryToPredictExpenseCategory = async (
  * guards in sync.
  */
 export const checkCanReceiveExpense = (account: Collective): void => {
-  if (!account.isActive) {
+  if (account.deactivatedAt) {
+    throw new ValidationFailed('Expenses cannot be submitted to archived accounts.');
+  } else if (!account.isActive) {
     throw new ValidationFailed('Expenses can only be submitted to active entities.');
   }
   const isAllowedType = [
@@ -2929,36 +3067,12 @@ export const getItemsChanges = async (
   }
 };
 
-/*
- * Validate the account holder name against the legal name. Following cases are considered a match,
- *
- * 1) Punctuation are ignored; "Evil Corp, Inc" and "Evil Corp, Inc." are considered a match.
- * 2) Accents are ignored; "François" and "Francois" are considered a match.
- * 3) The first name and last name order is ignored; "Benjamin Piouffle" and "Piouffle Benjamin" is considered a match.
- * 4) If one of account holder name or legal name is not defined then this function returns true.
+/**
+ * Validate the account holder name against the legal name. Partial matches are accepted
+ * (e.g. a missing middle name), see `areNamesMatching` for the exact rules.
  */
 export const isAccountHolderNameAndLegalNameMatch = (accountHolderName: string, legalName: string): boolean => {
-  // Ignore 501(c)(3) in both account holder name and legal name
-  legalName = legalName.replace(/501\(c\)\(3\)/g, '');
-  accountHolderName = accountHolderName.replace(/501\(c\)\(3\)/g, '');
-
-  const namesArray = legalName.trim().split(' ');
-  let legalNameReversed;
-  if (namesArray.length === 2) {
-    const firstName = namesArray[0];
-    const lastName = namesArray[1];
-    legalNameReversed = `${lastName} ${firstName}`;
-  }
-  return !(
-    accountHolderName.localeCompare(legalName, undefined, {
-      sensitivity: 'base',
-      ignorePunctuation: true,
-    }) &&
-    accountHolderName.localeCompare(legalNameReversed, undefined, {
-      sensitivity: 'base',
-      ignorePunctuation: true,
-    })
-  );
+  return areNamesMatching(accountHolderName, legalName);
 };
 
 export async function submitExpenseDraft(

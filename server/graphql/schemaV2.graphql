@@ -5625,7 +5625,6 @@ type TransactionCollection implements Collection {
 
 enum PaymentMethodType {
   default @deprecated(reason: "Please use uppercase values")
-  alipay @deprecated(reason: "Please use uppercase values")
   creditcard @deprecated(reason: "Please use uppercase values")
   prepaid @deprecated(reason: "Please use uppercase values")
   payment @deprecated(reason: "Please use uppercase values")
@@ -5646,8 +5645,8 @@ enum PaymentMethodType {
   payout @deprecated(reason: "Please use uppercase values")
   virtual_card @deprecated(reason: "Please use uppercase values")
   swish @deprecated(reason: "Please use uppercase values")
+  bitcoin @deprecated(reason: "This payment method type is not supported anymore")
   DEFAULT
-  ALIPAY
   CREDITCARD
   PREPAID
   PAYMENT
@@ -5668,6 +5667,7 @@ enum PaymentMethodType {
   PAYOUT
   VIRTUAL_CARD
   SWISH
+  BITCOIN @deprecated(reason: "This payment method type is not supported anymore")
 }
 
 enum PaymentMethodService {
@@ -6876,7 +6876,6 @@ type PaymentMethod {
 }
 
 enum PaymentMethodLegacyType {
-  ALIPAY
   CREDIT_CARD
   GIFT_CARD
   PREPAID_BUDGET
@@ -7728,7 +7727,6 @@ type CollectiveFeatures {
   PAYPAL_DONATIONS: CollectiveFeatureStatus
   HOST_DASHBOARD: CollectiveFeatureStatus
   CONNECTED_ACCOUNTS: CollectiveFeatureStatus
-  ALIPAY: CollectiveFeatureStatus
   STRIPE_PAYMENT_INTENT: CollectiveFeatureStatus
   USE_PAYMENT_METHODS: CollectiveFeatureStatus
   EMAIL_NOTIFICATIONS_PANEL: CollectiveFeatureStatus
@@ -28203,16 +28201,6 @@ type Mutation {
     """
     name: String
   ): PlaidConnectAccountResponse!
-
-  """
-  Manually request a sync for Plaid account
-  """
-  syncPlaidAccount(
-    """
-    The connected account to refresh
-    """
-    connectedAccount: ConnectedAccountReferenceInput!
-  ): TransactionsImport! @deprecated(reason: "2025-07-23: Use `syncTransactionsImport` instead")
 
   """
   Refresh the list of sub-accounts & other metadata by re-fetching the account info

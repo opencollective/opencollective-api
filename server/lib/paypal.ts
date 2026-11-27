@@ -267,11 +267,11 @@ const getPaypalWebhook = async (host, webhookId): Promise<PaypalWebhook> => {
 /**
  * See https://developer.paypal.com/docs/api/webhooks/v1/#webhooks_delete
  */
-const deletePaypalWebhook = async (host, webhookId): Promise<void> => {
+export const deletePaypalWebhook = async (host, webhookId): Promise<void> => {
   await paypalRequest(`notifications/webhooks/${webhookId}`, null, host, 'DELETE');
 };
 
-const isOpenCollectiveWebhook = (webhook: PaypalWebhook): boolean => {
+export const isOpenCollectiveWebhook = (webhook: PaypalWebhook): boolean => {
   if (config.env === 'development') {
     // localhost URLs are not supported by PayPal
     return webhook.url.startsWith(`https://smee.io/opencollective-paypal-dev-testing`);

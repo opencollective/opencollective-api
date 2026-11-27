@@ -3,7 +3,7 @@
 import * as Sentry from '@sentry/node';
 import { expect } from 'chai';
 import config from 'config';
-import { set } from 'lodash';
+import { cloneDeep, set } from 'lodash';
 import sinon, { assert, createSandbox } from 'sinon';
 import Stripe from 'stripe';
 
@@ -17,6 +17,7 @@ import { TransactionKind } from '../../../../server/constants/transaction-kind';
 import * as applyContributionAccountingCategoryRules from '../../../../server/lib/accounting/categorization/contribution-rules';
 import * as libPayments from '../../../../server/lib/payments';
 import { MAX_RETRIES } from '../../../../server/lib/recurring-contributions';
+import * as SentryLib from '../../../../server/lib/sentry';
 import stripe from '../../../../server/lib/stripe';
 import * as transactions from '../../../../server/lib/transactions';
 import models, { Collective, Expense } from '../../../../server/models';
@@ -282,6 +283,50 @@ describe('webhook', () => {
         tx => tx.kind === 'PAYMENT_PROCESSOR_DISPUTE_FEE' && tx.type === 'DEBIT',
       );
       expect(disputeFeeTransaction.amount).to.eql(-1500);
+    });
+
+    describe('when Stripe did not charge a dispute fee', () => {
+      const withoutDisputeFee = (event: Stripe.Event, balanceTransactions?: Stripe.BalanceTransaction[]) => {
+        const result = cloneDeep(event);
+        const dispute = result.data.object as Stripe.Dispute;
+        dispute.balance_transactions =
+          balanceTransactions ?? dispute.balance_transactions.map(tx => ({ ...tx, fee: 0, fee_details: [] }));
+        return result;
+      };
+
+      const cases: [string, Stripe.BalanceTransaction[] | undefined][] = [
+        ['without a "Dispute fee" entry', undefined],
+        ['without balance transactions', []],
+      ];
+      for (const [label, balanceTransactions] of cases) {
+        describe(label, () => {
+          it('un-disputes all Transactions and lifts the Order limit when the dispute was won', async () => {
+            await order.update({ SubscriptionId: null });
+            await webhook.chargeDisputeCreated(stripeMocks.webhook_dispute_created);
+            await webhook.chargeDisputeClosed(withoutDisputeFee(stripeMocks.webhook_dispute_won, balanceTransactions));
+
+            await order.reload();
+            expect(order.status).to.eql(OrderStatuses.PAID);
+            const transactions = await order.getTransactions();
+            expect(transactions.map(tx => tx.isDisputed)).to.not.include(true);
+            expect(transactions.some(tx => tx.kind === TransactionKind.PAYMENT_PROCESSOR_DISPUTE_FEE)).to.be.false;
+            await user.reload();
+            expect(user.data.features[FEATURE.ORDER]).to.eq(true);
+          });
+
+          it('un-disputes all Transactions when the dispute was lost', async () => {
+            await order.update({ SubscriptionId: null });
+            await webhook.chargeDisputeCreated(stripeMocks.webhook_dispute_created);
+            await webhook.chargeDisputeClosed(withoutDisputeFee(stripeMocks.webhook_dispute_lost, balanceTransactions));
+
+            await order.reload();
+            expect(order.status).to.eql(OrderStatuses.REFUNDED);
+            const transactions = await order.getTransactions();
+            expect(transactions.map(tx => tx.isDisputed)).to.not.include(true);
+            expect(transactions.some(tx => tx.kind === TransactionKind.PAYMENT_PROCESSOR_DISPUTE_FEE)).to.be.false;
+          });
+        });
+      }
     });
   });
 
@@ -608,6 +653,54 @@ describe('webhook', () => {
     });
 
     describe('stripePaymentIntentSucceeded()', () => {
+      it('reports succeeded payment intents that match no order to Sentry', async () => {
+        const reportStub = sandbox.stub(SentryLib, 'reportMessageToSentry');
+        set(event, 'data.object.id', randStr('pi_notfound'));
+        set(event, 'data.object.metadata', { orderId: `${order.id}` });
+        await webhook.stripePaymentIntentSucceeded(event);
+
+        assert.calledOnceWithMatch(reportStub, sinon.match('Could not find Order for succeeded Payment Intent'));
+      });
+
+      it('does not report unmatched payment intents that were not created by us', async () => {
+        const reportStub = sandbox.stub(SentryLib, 'reportMessageToSentry');
+        set(event, 'data.object.id', randStr('pi_foreign'));
+        await webhook.stripePaymentIntentSucceeded(event);
+
+        assert.notCalled(reportStub);
+      });
+
+      it('does not report payment intents already processed synchronously', async () => {
+        const reportStub = sandbox.stub(SentryLib, 'reportMessageToSentry');
+        sandbox.stub(common, 'createChargeTransactions').throws();
+        const paymentIntentId = randStr('pi_sync');
+        const chargeId = randStr('ch_sync');
+        await order.update({
+          status: OrderStatuses.PAID,
+          data: { previousStripePaymentIntents: [{ id: paymentIntentId }] },
+        });
+        await fakeTransaction({ OrderId: order.id, data: { charge: { id: chargeId } as Stripe.Charge } });
+        set(event, 'data.object.id', paymentIntentId);
+        set(event, 'data.object.charges.data[0].id', chargeId);
+        await webhook.stripePaymentIntentSucceeded(event);
+
+        assert.notCalled(reportStub);
+        assert.notCalled(common.createChargeTransactions);
+      });
+
+      it('reports archived payment intents whose charge was never recorded', async () => {
+        const reportStub = sandbox.stub(SentryLib, 'reportMessageToSentry');
+        sandbox.stub(common, 'createChargeTransactions').throws();
+        const paymentIntentId = randStr('pi_sync');
+        await order.update({ data: { previousStripePaymentIntents: [{ id: paymentIntentId }] } });
+        set(event, 'data.object.id', paymentIntentId);
+        set(event, 'data.object.charges.data[0].id', randStr('ch_missing'));
+        set(event, 'data.object.metadata', { orderId: `${order.id}` });
+        await webhook.stripePaymentIntentSucceeded(event);
+
+        assert.calledOnceWithMatch(reportStub, sinon.match('Could not find Order for succeeded Payment Intent'));
+      });
+
       it('returns if no order is found', async () => {
         sandbox.stub(common, 'createChargeTransactions').throws();
         set(event, 'data.object.id', 'pi_notfound');
@@ -1053,6 +1146,24 @@ describe('webhook', () => {
             dataValues: { id: order.id },
           },
           'Something went wrong with the payment, please contact support@opencollective.com.',
+        );
+      });
+
+      it('explains why the payment failed when the bank account was not verified with microdeposits in time', async () => {
+        sandbox.stub(libPayments, 'sendOrderFailedEmail').resolves();
+        set(event, 'data.object.last_payment_error', {
+          code: 'payment_method_microdeposit_verification_timeout',
+          message: 'Microdeposit verification timed out.',
+        });
+
+        await webhook.stripePaymentIntentFailed(event);
+        await order.reload();
+
+        expect(order.status).to.equal(OrderStatuses.ERROR);
+        assert.calledOnceWithMatch(
+          libPayments.sendOrderFailedEmail,
+          { dataValues: { id: order.id } },
+          sinon.match(/bank account was not verified within 10 days/),
         );
       });
 
@@ -1546,6 +1657,18 @@ describe('webhook', () => {
         await expense.reload();
         expect(expense.status).to.eql(ExpenseStatuses.PROCESSING);
       });
+
+      it('does not move a paid expense back to PROCESSING on a late event', async () => {
+        event.data.object.metadata = { expenseId: `${expense.id}` };
+        await webhook.stripePaymentIntentSucceeded(event);
+        await expense.reload();
+        expect(expense.status).to.eql(ExpenseStatuses.PAID);
+
+        await webhook.stripePaymentIntentProcessing(event);
+
+        await expense.reload();
+        expect(expense.status).to.eql(ExpenseStatuses.PAID);
+      });
     });
 
     describe('paymentIntentFailed', () => {
@@ -1578,6 +1701,140 @@ describe('webhook', () => {
         await expense.reload();
         expect(expense.status).to.eql(ExpenseStatuses.APPROVED);
         expect(metricsCountStub.called).to.be.false;
+      });
+
+      it('does not move a paid expense to ERROR on a late failure event', async () => {
+        await webhook.stripePaymentIntentProcessing(event);
+        await expense.reload();
+        await expense.update({ status: ExpenseStatuses.PAID });
+
+        await webhook.stripePaymentIntentFailed(event);
+
+        await expense.reload();
+        expect(expense.status).to.eql(ExpenseStatuses.PAID);
+        expect(metricsCountStub.called).to.be.false;
+      });
+
+      it('keeps the payment intent as current when payment failed immediately, so it can be retried', async () => {
+        await webhook.stripePaymentIntentFailed(event);
+
+        await expense.reload();
+        expect(expense.data.stripePaymentIntent.id).to.eql(event.data.object.id);
+      });
+    });
+
+    describe('retry after a declined card', () => {
+      it('records the payment when the declined intent is retried and succeeds', async () => {
+        event.data.object.last_payment_error = { code: 'card_declined', message: 'Your card was declined.' };
+        await webhook.stripePaymentIntentFailed(event);
+        delete event.data.object.last_payment_error;
+        await webhook.stripePaymentIntentSucceeded(event);
+
+        await expense.reload();
+        expect(expense.status).to.eql(ExpenseStatuses.PAID);
+        expect(transactions.createTransactionsFromPaidStripeExpense).to.have.been.calledOnce;
+      });
+
+      it('records the payment of an older intent of the expense, resolved from its metadata', async () => {
+        const previousIntentId = expense.data.stripePaymentIntent.id;
+        await expense.update({
+          data: {
+            stripePaymentIntent: { id: randStr('pi_fake') } as Stripe.PaymentIntent,
+            previousStripePaymentIntents: [{ id: previousIntentId } as Stripe.PaymentIntent],
+          },
+        });
+        event.account = 'testUserName';
+        event.data.object.metadata = { expenseId: `${expense.id}` };
+
+        await webhook.stripePaymentIntentSucceeded(event);
+
+        await expense.reload();
+        expect(expense.status).to.eql(ExpenseStatuses.PAID);
+        expect(transactions.createTransactionsFromPaidStripeExpense).to.have.been.calledOnce;
+      });
+
+      for (const [label, account] of [
+        ['without an account', undefined],
+        ['for the platform account', config.stripe.accountId],
+      ]) {
+        it(`trusts the metadata of an unknown intent coming from the platform (${label})`, async () => {
+          await expense.update({ data: { stripePaymentIntent: { id: randStr('pi_fake') } as Stripe.PaymentIntent } });
+          event.account = account;
+          event.data.object.id = randStr('pi_platform');
+          event.data.object.metadata = { expenseId: `${expense.id}` };
+
+          await webhook.stripePaymentIntentSucceeded(event);
+
+          await expense.reload();
+          expect(expense.status).to.eql(ExpenseStatuses.PAID);
+          expect(transactions.createTransactionsFromPaidStripeExpense).to.have.been.calledOnce;
+        });
+      }
+
+      it('does not trust the metadata of an unknown intent coming from a connected account', async () => {
+        const reportStub = sandbox.stub(SentryLib, 'reportMessageToSentry');
+        await expense.update({ data: { stripePaymentIntent: { id: randStr('pi_fake') } as Stripe.PaymentIntent } });
+        event.account = 'testUserName';
+        event.data.object.id = randStr('pi_unknown');
+        event.data.object.metadata = { expenseId: `${expense.id}` };
+
+        await webhook.stripePaymentIntentSucceeded(event);
+
+        await expense.reload();
+        expect(expense.status).to.eql(ExpenseStatuses.APPROVED);
+        expect(transactions.createTransactionsFromPaidStripeExpense).to.not.have.been.called;
+        assert.calledOnceWithMatch(reportStub, sinon.match('Could not find Expense for succeeded Payment Intent'));
+      });
+
+      it('does not record a second payment for an expense that is already paid', async () => {
+        const previousIntentId = expense.data.stripePaymentIntent.id;
+        await expense.update({
+          status: ExpenseStatuses.PAID,
+          data: { previousStripePaymentIntents: [{ id: previousIntentId } as Stripe.PaymentIntent] },
+        });
+        event.data.object.metadata = { expenseId: `${expense.id}` };
+
+        await webhook.stripePaymentIntentSucceeded(event);
+
+        expect(transactions.createTransactionsFromPaidStripeExpense).to.not.have.been.called;
+      });
+
+      it('does not record a second payment when another intent was recorded but the expense is not marked paid yet', async () => {
+        const previousIntentId = expense.data.stripePaymentIntent.id;
+        await expense.update({
+          data: { previousStripePaymentIntents: [{ id: previousIntentId } as Stripe.PaymentIntent] },
+        });
+        await fakeTransaction({
+          ExpenseId: expense.id,
+          CollectiveId: payee.id,
+          kind: TransactionKind.EXPENSE,
+          type: 'CREDIT',
+          isRefund: false,
+        });
+        event.data.object.metadata = { expenseId: `${expense.id}` };
+
+        await webhook.stripePaymentIntentSucceeded(event);
+
+        expect(transactions.createTransactionsFromPaidStripeExpense).to.not.have.been.called;
+      });
+
+      it('archives the current intent when an older one starts processing', async () => {
+        const olderIntentId = expense.data.stripePaymentIntent.id;
+        const currentIntentId = randStr('pi_current');
+        await expense.update({
+          data: {
+            stripePaymentIntent: { id: currentIntentId } as Stripe.PaymentIntent,
+            previousStripePaymentIntents: [{ id: olderIntentId } as Stripe.PaymentIntent],
+          },
+        });
+        event.data.object.metadata = { expenseId: `${expense.id}` };
+
+        await webhook.stripePaymentIntentProcessing(event);
+
+        await expense.reload();
+        expect(expense.status).to.eql(ExpenseStatuses.PROCESSING);
+        expect(expense.data.stripePaymentIntent.id).to.eql(olderIntentId);
+        expect(expense.data.previousStripePaymentIntents.map(pi => pi.id)).to.include(currentIntentId);
       });
     });
   });

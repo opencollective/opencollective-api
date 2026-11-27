@@ -1,5 +1,5 @@
 import config from 'config';
-import { get, pick, truncate } from 'lodash';
+import { get, isNil, pick, truncate } from 'lodash';
 import moment from 'moment';
 
 import { SupportedCurrency } from '../../constants/currencies';
@@ -362,6 +362,12 @@ export const setupPaypalSubscriptionForOrder = async (order: Order, paymentMetho
   } catch (e) {
     logger.error(`[PayPal] Error while activating subscription: ${e}`);
     reportErrorToSentry(e);
+
+    // Restore the initial subscription, as the new PayPal subscription was never activated
+    if (existingSubscription) {
+      await existingSubscription.update(initialSubscriptionParams);
+    }
+
     const error = new Error('Failed to activate PayPal subscription');
     error['rootException'] = e;
     order.update({ status: ORDER_STATUS.ERROR });
@@ -417,7 +423,6 @@ export const updateSubscriptionWithPaypal = async (
 const createSubscription = async (order: Order, paypalSubscriptionId) => {
   return order.createSubscription({
     paypalSubscriptionId,
-    amount: order.totalAmount,
     currency: order.currency,
     interval: order.interval,
     isActive: false, // Will be activated when the payment hits
@@ -455,6 +460,12 @@ export const fetchPaypalTransactionsForSubscription = async (
 const verifySubscription = async (order: Order, paypalSubscription: PayPalSubscription) => {
   if (paypalSubscription.status !== 'APPROVED') {
     throw new Error('Subscription must be approved to be activated');
+  } else if (paypalSubscription.plan_overridden) {
+    // Overridden plan attributes (e.g. pricing) mean PayPal would not charge `plan.amount`
+    throw new Error('PayPal subscriptions with a customized plan are not supported');
+  } else if (!isNil(paypalSubscription.quantity) && Number(paypalSubscription.quantity) !== 1) {
+    // A missing quantity defaults to 1 on PayPal's side; anything else (including "" or a non-numeric value) is rejected
+    throw new Error('PayPal subscription quantity must be 1');
   }
 
   // The plan is created for the tier the contributor is moving to, which stays pending until PayPal charges it

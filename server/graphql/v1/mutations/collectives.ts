@@ -15,6 +15,7 @@ import * as github from '../../../lib/github';
 import { canSeePrivateAccount } from '../../../lib/private-accounts';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../../lib/rate-limit';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
+import { formatCurrency } from '../../../lib/utils';
 import models, { Collective, sequelize } from '../../../models';
 import { isRemoteUserRoot } from '../../common/scope-check';
 import { NotFound, RateLimitExceeded, Unauthorized, ValidationFailed } from '../../errors';
@@ -302,6 +303,10 @@ export function editCollective(_, args, req) {
             );
           } else if (collective.isPrivate && newCollectiveData.HostCollectiveId) {
             throw new ValidationFailed('Private accounts cannot change hosts');
+          } else if (newCollectiveData.HostCollectiveId && collective.hasActiveHost()) {
+            throw new ValidationFailed(
+              'This account already has an active host. It must leave its current host before applying to a new one.',
+            );
           }
 
           const newHost =
@@ -413,14 +418,29 @@ export async function archiveCollective(_, args, req) {
     }
   }
 
-  // `changeHost` below refuses to remove the host while the account or one of its children has processing expenses.
-  // Check it before changing anything, so that a refused archive does not leave contributions cancelled (and queued
-  // for cancellation on the payment provider) or children archived.
+  // `changeHost` below refuses to remove the host while the account or one of its children has a positive balance or
+  // processing expenses. Check it before changing anything, so that a refused archive does not leave contributions
+  // cancelled (and queued for cancellation on the payment provider) or children archived.
   if (collective.HostCollectiveId) {
     const hostedChildren = await collective.getChildren({
-      attributes: ['id'],
       where: { HostCollectiveId: { [Op.ne]: null } },
     });
+    // The combined balance checked above can be 0 while one account has a positive balance offset by a negative one
+    // elsewhere in the family, so check each account on its own like `changeHost` does.
+    const accountsWithBalance: string[] = [];
+    for (const account of [collective, ...hostedChildren]) {
+      const accountBalance = await account.getBalance();
+      if (accountBalance > 0) {
+        accountsWithBalance.push(
+          `${account.name} (@${account.slug}): ${formatCurrency(accountBalance, account.currency)}`,
+        );
+      }
+    }
+    if (accountsWithBalance.length > 0) {
+      throw new Error(
+        `Cannot archive collective with balance > 0. These accounts still hold a positive balance: ${accountsWithBalance.join(', ')}`,
+      );
+    }
     const processingExpensesCount = await models.Expense.count({
       where: { CollectiveId: [collective.id, ...hostedChildren.map(c => c.id)], status: ExpenseStatuses.PROCESSING },
     });

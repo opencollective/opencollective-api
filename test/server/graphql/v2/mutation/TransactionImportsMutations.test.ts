@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import config from 'config';
 import gql from 'fake-tag';
-import { AccountSubtype, AccountType, PlaidApi } from 'plaid';
+import { Plaid } from 'plaid';
 import sinon from 'sinon';
 
 import { Service } from '../../../../../server/constants/connected-account';
@@ -14,6 +14,7 @@ import { EntityPublicId, EntityShortIdPrefix } from '../../../../../server/lib/p
 import * as PlaidClient from '../../../../../server/lib/plaid/client';
 import twoFactorAuthLib from '../../../../../server/lib/two-factor-authentication';
 import models, { ConnectedAccount } from '../../../../../server/models';
+import { makePlaidClientStub, PlaidClientStub } from '../../../../mocks/plaid';
 import {
   fakeAccountingCategory,
   fakeActiveHost,
@@ -32,7 +33,7 @@ import { graphqlQueryV2, resetCaches } from '../../../../utils';
 describe('server/graphql/v2/mutation/TransactionImportsMutations', () => {
   let platform;
   let sandbox: sinon.SinonSandbox;
-  let stubPlaidAPI: sinon.SinonStubbedInstance<PlaidApi>;
+  let stubPlaidAPI: PlaidClientStub;
 
   before(async () => {
     sandbox = sinon.createSandbox();
@@ -46,7 +47,7 @@ describe('server/graphql/v2/mutation/TransactionImportsMutations', () => {
 
   beforeEach(async () => {
     // Stub plaid
-    stubPlaidAPI = sandbox.createStubInstance(PlaidApi);
+    stubPlaidAPI = makePlaidClientStub(sandbox);
     sandbox.stub(PlaidClient, 'getPlaidClient').returns(stubPlaidAPI);
   });
 
@@ -219,7 +220,7 @@ describe('server/graphql/v2/mutation/TransactionImportsMutations', () => {
     it('if the account is plaid, 2FA must be required and connected account must me deleted', async () => {
       // Stub methods
       const twoFactorStub = sandbox.stub(twoFactorAuthLib, 'enforceForAccount').resolves();
-      stubPlaidAPI.itemRemove = sandbox.stub().resolves({});
+      stubPlaidAPI.item.remove = sandbox.stub().resolves({});
 
       // Call the mutation
       const remoteUser = await fakeUser({ data: { isRoot: true } });
@@ -239,7 +240,7 @@ describe('server/graphql/v2/mutation/TransactionImportsMutations', () => {
       result.errors && console.error(result.errors);
       expect(result.errors).to.not.exist;
       expect(result.data.deleteTransactionsImport).to.be.true;
-      expect(stubPlaidAPI.itemRemove).to.have.been.calledOnce;
+      expect(stubPlaidAPI.item.remove).to.have.been.calledOnce;
       const deletedAccount = await ConnectedAccount.findByPk(connectedAccount.id);
       expect(deletedAccount).to.be.null;
 
@@ -780,8 +781,8 @@ describe('server/graphql/v2/mutation/TransactionImportsMutations', () => {
                 mask: '0444',
                 name: 'Checking',
                 officialName: 'Checking',
-                subtype: AccountSubtype.Checking,
-                type: AccountType.Depository,
+                subtype: Plaid.AccountSubtype.Checking,
+                type: Plaid.AccountType.Depository,
               },
             ],
           },

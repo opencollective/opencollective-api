@@ -58,7 +58,10 @@
       "detailed": "GRAPHQL_ERROR_DETAILED"
     },
     "resolverTimeDebugWarning": "GRAPHQL_RESOLVER_TIME_DEBUG",
-    "rejectOnMaxComplexity": "GRAPHQL_REJECT_ON_MAX_COMPLEXITY"
+    "rejectOnMaxComplexity": "GRAPHQL_REJECT_ON_MAX_COMPLEXITY",
+    "structuralLimits": {
+      "reject": "GRAPHQL_STRUCTURAL_LIMITS_REJECT"
+    }
   },
   "memcache": {
     "servers": "MEMCACHE_SERVERS",

@@ -1,6 +1,6 @@
 import '../../server/env';
 
-import { groupBy, omit, size, sortBy, uniq } from 'lodash';
+import { groupBy, omit, size, sortBy } from 'lodash';
 import moment from 'moment';
 
 import { activities } from '../../server/constants';
@@ -8,40 +8,24 @@ import FEATURE from '../../server/constants/feature';
 import OrderStatuses from '../../server/constants/order-status';
 import logger from '../../server/lib/logger';
 import { findPaymentMethodProvider } from '../../server/lib/payments';
-import { reportErrorToSentry } from '../../server/lib/sentry';
+import { getHostPaypalAccount } from '../../server/lib/paypal';
+import { reportErrorToSentry, reportMessageToSentry } from '../../server/lib/sentry';
 import { parseToBoolean, sleep } from '../../server/lib/utils';
 import models, { Collective, Op } from '../../server/models';
 import Order from '../../server/models/Order';
 import { CONTRIBUTION_PAUSED_MSG } from '../../server/paymentProviders/paypal/subscription';
+import { getPaypalHostForOrder } from '../../server/paymentProviders/paypal/subscription-host';
 import { isPaymentProviderWithExternalRecurring } from '../../server/paymentProviders/types';
 import { runCronJob } from '../utils';
 
-const HostsCache = {};
+const HostsCache: Record<number, Collective> = {};
 
 /**
  * If the collective has been archived, its HostCollectiveId has been set to null.
  * We need some more logic to make sure we're loading the right host.
  */
-const getHostFromOrder = async order => {
-  const transactions = await order.getTransactions({
-    attributes: ['HostCollectiveId'],
-    where: { type: 'CREDIT', kind: 'CONTRIBUTION', HostCollectiveId: { [Op.ne]: null } },
-    order: [['createdAt', 'DESC']],
-  });
-
-  const hostIds: number[] = uniq(transactions.map(t => t.HostCollectiveId));
-  if (!hostIds.length) {
-    // If there is no transaction, it could be that the order hasn't been processed yet. We can safely assume
-    // that the current collective host (if any) is the right one.
-    return order.collective.getHostCollective();
-  }
-
-  const hostId = hostIds[0]; // Take the most recent transaction's host
-  if (!HostsCache[hostId]) {
-    HostsCache[hostId] = await models.Collective.findByPk(hostId);
-  }
-  return HostsCache[hostId];
-};
+const getHostFromOrder = (order: Order): Promise<Collective | null> =>
+  getPaypalHostForOrder(order, { hostsCache: HostsCache });
 
 type StatusChangeReason = {
   code:
@@ -157,10 +141,36 @@ export async function run() {
             `Cancelling subscription ${order.Subscription.id} from order ${order.id} of @${collectiveHandle}`,
           );
           if (!process.env.DRY) {
-            logger.debug('Deactivating subscription');
-            await order.Subscription.deactivate(reason.message, host);
+            const isPaypalHostDisconnected =
+              Boolean(order.Subscription.paypalSubscriptionId) && !(host && (await getHostPaypalAccount(host)));
+            if (isPaypalHostDisconnected) {
+              // The host that owns the subscription on PayPal is not connected anymore: we can't cancel it there.
+              // Deactivate it locally rather than retrying forever, and report it once.
+              logger.warn(
+                `Order #${order.id}: the PayPal host of subscription ${order.Subscription.paypalSubscriptionId} is not connected, deactivating locally`,
+              );
+              reportMessageToSentry('Could not cancel PayPal subscription: host is not connected to PayPal', {
+                feature: FEATURE.RECURRING_CONTRIBUTIONS,
+                severity: 'warning',
+                extra: {
+                  orderId: order.id,
+                  paypalSubscriptionId: order.Subscription.paypalSubscriptionId,
+                  hostSlug: host?.slug,
+                },
+              });
+              await order.Subscription.update({ isActive: false, deactivatedAt: new Date() });
+            } else {
+              logger.debug('Deactivating subscription');
+              await order.Subscription.deactivate(reason.message, host);
+            }
             logger.debug('Updating order');
-            await order.update({ data: { ...order.data, needsAsyncDeactivation: false } });
+            await order.update({
+              data: {
+                ...order.data,
+                needsAsyncDeactivation: false,
+                ...(isPaypalHostDisconnected && { paypalNotCancelledHostDisconnected: true }),
+              },
+            });
             logger.debug('Creating the activity and sending email');
             const activityType =
               reason.code === 'PAUSED' ? activities.SUBSCRIPTION_PAUSED : activities.SUBSCRIPTION_CANCELED;

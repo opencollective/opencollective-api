@@ -1,13 +1,16 @@
 /* eslint-disable camelcase */
 
 import { expect } from 'chai';
+import config from 'config';
 import { createSandbox } from 'sinon';
 
 import { run } from '../../../cron/daily/51-synchronize-paypal-ledger';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../server/constants/paymentMethods';
 import { TransactionKind } from '../../../server/constants/transaction-kind';
 import { TransactionTypes } from '../../../server/constants/transactions';
+import * as PaymentsLib from '../../../server/lib/payments';
 import * as PaypalLib from '../../../server/lib/paypal';
+import * as SentryLib from '../../../server/lib/sentry';
 import models from '../../../server/models';
 import * as PaypalApi from '../../../server/paymentProviders/paypal/api';
 import {
@@ -18,7 +21,7 @@ import {
   fakePaymentMethod,
   fakeTransaction,
 } from '../../test-helpers/fake-data';
-import { resetTestDB } from '../../utils';
+import { resetTestDB, seedDefaultVendors } from '../../utils';
 
 describe('cron/daily/51-synchronize-paypal-ledger', () => {
   let sandbox;
@@ -36,8 +39,8 @@ describe('cron/daily/51-synchronize-paypal-ledger', () => {
   });
 
   /** Create a host with a PayPal connected account and stub getHostsWithPayPalConnected */
-  const setupHost = async () => {
-    const host = await fakeHost();
+  const setupHost = async (hostData = {}) => {
+    const host = await fakeHost(hostData);
     await fakeConnectedAccount({ CollectiveId: host.id, service: 'paypal', token: 'test-paypal-token' });
     sandbox.stub(PaypalLib, 'getHostsWithPayPalConnected').resolves([host]);
     return host;
@@ -90,6 +93,45 @@ describe('cron/daily/51-synchronize-paypal-ledger', () => {
       fullResponse: { total_items: transactions.length },
     });
   };
+
+  describe('date range', () => {
+    const cronModulePath = Object.keys(require.cache).find(path =>
+      path.endsWith('/cron/daily/51-synchronize-paypal-ledger.ts'),
+    );
+
+    /**
+     * `START_DATE` and `END_DATE` are read when the cron module is loaded, so a custom range needs a fresh
+     * copy of the module loaded with them set. The cached copy is put back afterwards for the other tests.
+     */
+    const runWithDates = async (startDate: string, endDate: string) => {
+      const cachedModule = require.cache[cronModulePath];
+      const previousEnv = { START_DATE: process.env.START_DATE, END_DATE: process.env.END_DATE };
+      delete require.cache[cronModulePath];
+      process.env.START_DATE = startDate;
+      process.env.END_DATE = endDate;
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports, n/no-missing-require -- the resolver does not see .ts files; mocha loads it through Babel
+        const { run: runWithEnv } = require('../../../cron/daily/51-synchronize-paypal-ledger');
+        await runWithEnv();
+      } finally {
+        for (const [key, value] of Object.entries(previousEnv)) {
+          if (value === undefined) {
+            delete process.env[key];
+          } else {
+            process.env[key] = value;
+          }
+        }
+        require.cache[cronModulePath] = cachedModule;
+      }
+    };
+
+    it('stops without processing any host when START_DATE is after END_DATE', async () => {
+      await setupHost();
+      const listStub = sandbox.stub(PaypalLib, 'listPayPalTransactions').resolves({ transactions: [], totalPages: 1 });
+      await runWithDates('2026-02-10', '2026-02-01');
+      expect(listStub).to.not.have.been.called;
+    });
+  });
 
   describe('getMissingRefundTransactions', () => {
     it('records a missing refund when PayPal marks a capture as REFUNDED', async () => {
@@ -149,6 +191,73 @@ describe('cron/daily/51-synchronize-paypal-ledger', () => {
       // The original transaction should now point to its refund
       await originalTransaction.reload();
       expect(originalTransaction.RefundTransactionId).to.not.be.null;
+    });
+
+    it('converts the refunded PayPal fee from the capture currency to the host currency', async () => {
+      await seedDefaultVendors();
+      sandbox.stub(config, 'ledger').value({ ...config.ledger, separatePaymentProcessorFees: true });
+      const host = await setupHost();
+      const collective = await fakeCollective({ HostCollectiveId: host.id, currency: 'EUR' });
+      const paymentMethod = await fakePaymentMethod({
+        service: PAYMENT_METHOD_SERVICE.PAYPAL,
+        type: PAYMENT_METHOD_TYPE.PAYMENT,
+      });
+      const order = await fakeOrder({
+        CollectiveId: collective.id,
+        PaymentMethodId: paymentMethod.id,
+        currency: 'EUR',
+      });
+      const captureId = 'CAPTURE-REFUNDED-EUR-001';
+
+      // 10.00 EUR capture with a 1.00 EUR PayPal fee, recorded on a USD host at a 1.1 rate
+      await models.Transaction.createFromContributionPayload({
+        CreatedByUserId: order.CreatedByUserId,
+        FromCollectiveId: order.FromCollectiveId,
+        CollectiveId: collective.id,
+        HostCollectiveId: host.id,
+        OrderId: order.id,
+        PaymentMethodId: paymentMethod.id,
+        type: TransactionTypes.CREDIT,
+        amount: 1000,
+        currency: 'EUR',
+        amountInHostCurrency: 1100,
+        hostCurrency: 'USD',
+        hostCurrencyFxRate: 1.1,
+        hostFeeInHostCurrency: 0,
+        paymentProcessorFeeInHostCurrency: 110,
+        description: 'PayPal contribution',
+        data: { paypalCaptureId: captureId },
+      });
+
+      stubListTransactions(captureId, 'T0006', 'REFUND-EUR-001');
+      sandbox.stub(PaypalApi, 'paypalRequestV2').callsFake(async url => {
+        if (url === 'payments/refunds/REFUND-EUR-001') {
+          return {
+            id: 'REFUND-EUR-001',
+            status: 'COMPLETED',
+            seller_payable_breakdown: {
+              paypal_fee: { value: '1.00', currency_code: 'EUR' }, // The whole fee, in the capture currency
+              total_refunded_amount: { value: '10.00', currency_code: 'EUR' },
+            },
+          };
+        }
+        throw new Error(`Unexpected PayPal API call: ${url}`);
+      });
+
+      await run();
+
+      const feeRefunds = await models.Transaction.findAll({
+        where: { OrderId: order.id, kind: TransactionKind.PAYMENT_PROCESSOR_FEE, isRefund: true, type: 'CREDIT' },
+      });
+      expect(feeRefunds).to.have.length(1);
+      expect(feeRefunds[0].amountInHostCurrency).to.eq(110); // 1.10 USD
+      expect(feeRefunds[0].amount).to.eq(100); // 1.00 EUR
+
+      // PayPal returned the whole fee, so the host must not cover any part of it
+      const covers = await models.Transaction.findAll({
+        where: { OrderId: order.id, kind: TransactionKind.PAYMENT_PROCESSOR_COVER },
+      });
+      expect(covers).to.have.length(0);
     });
 
     it('records a missing reversal when PayPal marks a capture as reversed (T1106)', async () => {
@@ -319,6 +428,154 @@ describe('cron/daily/51-synchronize-paypal-ledger', () => {
       // No refund transaction should have been created
       await originalTransaction.reload();
       expect(originalTransaction.RefundTransactionId).to.be.null;
+    });
+
+    it('keeps syncing other hosts when recording a refund fails for one host', async () => {
+      const setupRefundedContribution = async (captureId: string) => {
+        const host = await fakeHost();
+        await fakeConnectedAccount({ CollectiveId: host.id, service: 'paypal', token: 'test-paypal-token' });
+        const collective = await fakeCollective({ HostCollectiveId: host.id });
+        const paymentMethod = await fakePaymentMethod({
+          service: PAYMENT_METHOD_SERVICE.PAYPAL,
+          type: PAYMENT_METHOD_TYPE.PAYMENT,
+        });
+        const order = await fakeOrder({ CollectiveId: collective.id, PaymentMethodId: paymentMethod.id });
+        const transaction = await fakeTransaction(
+          {
+            type: TransactionTypes.CREDIT,
+            kind: TransactionKind.CONTRIBUTION,
+            isRefund: false,
+            RefundTransactionId: null,
+            OrderId: order.id,
+            CollectiveId: collective.id,
+            HostCollectiveId: host.id,
+            PaymentMethodId: paymentMethod.id,
+            amount: 1000,
+            paymentProcessorFeeInHostCurrency: -50,
+            data: { paypalCaptureId: captureId },
+          },
+          { createDoubleEntry: true },
+        );
+        return { host, transaction };
+      };
+
+      const hostA = await setupRefundedContribution('CAPTURE-ISOLATION-A');
+      const hostB = await setupRefundedContribution('CAPTURE-ISOLATION-B');
+      sandbox.stub(PaypalLib, 'getHostsWithPayPalConnected').resolves([hostA.host, hostB.host]);
+      sandbox.stub(PaypalLib, 'listPayPalTransactions').callsFake(async host => {
+        const captureId = host.id === hostA.host.id ? 'CAPTURE-ISOLATION-A' : 'CAPTURE-ISOLATION-B';
+        const transactions = [
+          { transaction_info: { transaction_id: captureId, transaction_event_code: 'T0006' } },
+          {
+            transaction_info: {
+              transaction_id: `REFUND-${captureId}`,
+              transaction_event_code: 'T1107',
+              paypal_reference_id: captureId,
+              paypal_reference_id_type: 'TXN',
+            },
+          },
+        ];
+        return { transactions, currentPage: 1, totalPages: 1, fullResponse: { total_items: transactions.length } };
+      });
+
+      sandbox.stub(PaypalApi, 'paypalRequestV2').callsFake(async url => {
+        if (url.startsWith('payments/refunds/')) {
+          return {
+            id: url.split('/').pop(),
+            status: 'COMPLETED',
+            seller_payable_breakdown: {
+              paypal_fee: { value: '0.00', currency_code: 'USD' },
+              total_refunded_amount: { value: '10.00', currency_code: 'USD' },
+            },
+          };
+        }
+        throw new Error(`Unexpected PayPal API call: ${url}`);
+      });
+
+      // Simulate a webhook recording host A's refund first: createRefundTransaction throws for it
+      const originalCreateRefundTransaction = PaymentsLib.createRefundTransaction;
+      sandbox
+        .stub(PaymentsLib, 'createRefundTransaction')
+        .callsFake(async (transaction, refundedPaymentProcessorFee, data, user) => {
+          if (transaction.id === hostA.transaction.id) {
+            throw new Error('This transaction has already been refunded');
+          }
+          return originalCreateRefundTransaction(transaction, refundedPaymentProcessorFee, data, user);
+        });
+      const reportErrorToSentry = sandbox.stub(SentryLib, 'reportErrorToSentry');
+
+      await expect(run()).to.be.fulfilled;
+
+      // The error is reported, and host B's refund is still recorded
+      expect(reportErrorToSentry.calledOnce).to.be.true;
+      expect(reportErrorToSentry.firstCall.args[0].message).to.eq('This transaction has already been refunded');
+      const refundTransaction = await models.Transaction.findOne({
+        where: { RefundTransactionId: hostB.transaction.id },
+      });
+      expect(refundTransaction, 'host B refund transaction should exist').to.exist;
+    });
+
+    it('records a full refund when the collective currency differs from the host currency', async () => {
+      const host = await setupHost({ currency: 'USD' });
+      const collective = await fakeCollective({ HostCollectiveId: host.id, currency: 'EUR' });
+      const paymentMethod = await fakePaymentMethod({
+        service: PAYMENT_METHOD_SERVICE.PAYPAL,
+        type: PAYMENT_METHOD_TYPE.PAYMENT,
+      });
+      const order = await fakeOrder({
+        CollectiveId: collective.id,
+        PaymentMethodId: paymentMethod.id,
+        currency: 'EUR',
+        totalAmount: 1000,
+      });
+      const captureId = 'CAPTURE-EUR-001';
+
+      // 10 EUR contribution on a USD host (fx 1.1) → 11 USD in host currency, 0.55 USD fee
+      const originalTransaction = await fakeTransaction(
+        {
+          type: TransactionTypes.CREDIT,
+          kind: TransactionKind.CONTRIBUTION,
+          isRefund: false,
+          RefundTransactionId: null,
+          OrderId: order.id,
+          CollectiveId: collective.id,
+          HostCollectiveId: host.id,
+          PaymentMethodId: paymentMethod.id,
+          amount: 1000,
+          currency: 'EUR',
+          hostCurrency: 'USD',
+          hostCurrencyFxRate: 1.1,
+          amountInHostCurrency: 1100,
+          paymentProcessorFeeInHostCurrency: -55,
+          data: { paypalCaptureId: captureId },
+        },
+        { createDoubleEntry: true },
+      );
+
+      stubListTransactions(captureId, 'T0006', 'REFUND-EUR-001');
+
+      sandbox.stub(PaypalApi, 'paypalRequestV2').callsFake(async url => {
+        if (url === 'payments/refunds/REFUND-EUR-001') {
+          // PayPal returns amounts in the capture currency (EUR)
+          return {
+            id: 'REFUND-EUR-001',
+            status: 'COMPLETED',
+            seller_payable_breakdown: {
+              paypal_fee: { value: '0.50', currency_code: 'EUR' },
+              total_refunded_amount: { value: '10.00', currency_code: 'EUR' },
+            },
+          };
+        }
+        throw new Error(`Unexpected PayPal API call: ${url}`);
+      });
+
+      await run();
+
+      const refundTransaction = await models.Transaction.findOne({
+        where: { RefundTransactionId: originalTransaction.id },
+      });
+      expect(refundTransaction, 'full refund should be recorded, not flagged as partial').to.exist;
+      expect(refundTransaction.isRefund).to.be.true;
     });
   });
 });

@@ -1,4 +1,5 @@
 import { expect } from 'chai';
+import { get } from 'lodash';
 
 import { CollectiveType } from '../../../server/constants/collectives';
 import FEATURE from '../../../server/constants/feature';
@@ -8,6 +9,7 @@ import {
   getFeaturesAccessMap,
   isFeatureBlockedForAccount,
 } from '../../../server/lib/allowed-features';
+import models from '../../../server/models';
 import {
   fakeActiveHost,
   fakeCollective,
@@ -55,6 +57,67 @@ describe('server/lib/allowed-features', () => {
   });
 
   // This test case is expected to be the most comprehensive one, covering all the feature flags
+  describe('isFeatureBlockedForAccount, compared with its previous implementation', () => {
+    /** The implementation before the flags were read with plain property accesses */
+    const isFeatureBlockedWithLodashPaths = (collective, feature: FEATURE): boolean => {
+      if (feature === FEATURE.PUBLIC_PROFILE) {
+        return get(collective, `data.features.${feature}`) === false;
+      }
+
+      return (
+        get(collective, `data.features.${FEATURE.ALL}`) === false ||
+        get(collective, `data.features.${feature}`) === false ||
+        get(collective, `data.isSuspended`) === true
+      );
+    };
+
+    it('answers like the lodash paths for every feature and shape of data', () => {
+      const dataShapes = [
+        undefined,
+        null,
+        {},
+        'not an object',
+        { features: null },
+        { features: 'not an object' },
+        { features: {} },
+        { isSuspended: true },
+        { isSuspended: false },
+        { isSuspended: 'true' },
+        { features: { ALL: false } },
+        { features: { ALL: true } },
+        { features: { ALL: null } },
+        { features: { ALL: 0 } },
+        ...Object.values(FEATURE).flatMap(feature => [
+          { features: { [feature]: false } },
+          { features: { [feature]: true } },
+          { features: { [feature]: null } },
+          { features: { [feature]: true, ALL: false } },
+          { features: { [feature]: false }, isSuspended: true },
+        ]),
+      ];
+
+      let nbBlocked = 0;
+      const accounts = [
+        null,
+        undefined,
+        ...dataShapes.map(data => ({ data })),
+        ...dataShapes.map(data => models.Collective.build({ data } as never)),
+      ];
+      for (const account of accounts) {
+        for (const feature of Object.values(FEATURE)) {
+          const expected = isFeatureBlockedWithLodashPaths(account, feature);
+          expect(
+            isFeatureBlockedForAccount(account as never, feature),
+            `${feature} ${JSON.stringify(account)}`,
+          ).to.equal(expected);
+          nbBlocked += expected ? 1 : 0;
+        }
+      }
+
+      expect(nbBlocked).to.be.above(1000);
+    });
+  });
+
   describe('getFeatureAccess', () => {
     it('returns UNSUPPORTED if collective is null', async () => {
       expect(await getFeatureAccess(null, FEATURE.CONVERSATIONS)).to.deep.eq({ access: 'UNSUPPORTED', reason: null });
@@ -117,23 +180,6 @@ describe('server/lib/allowed-features', () => {
       expect(await getFeatureAccess(host, FEATURE.CHART_OF_ACCOUNTS)).to.deep.eq({
         access: 'DISABLED',
         reason: 'PRICING',
-      });
-    });
-
-    describe('ALIPAY', () => {
-      it('is AVAILABLE for active hosts, UNSUPPORTED otherwise', async () => {
-        const host = await fakeActiveHost();
-        expect(await getFeatureAccess(host, FEATURE.ALIPAY)).to.deep.eq({ access: 'AVAILABLE', reason: null });
-        const inactiveHost = await fakeCollective({ hasMoneyManagement: true, isActive: false });
-        expect(await getFeatureAccess(inactiveHost, FEATURE.ALIPAY)).to.deep.eq({
-          access: 'UNSUPPORTED',
-          reason: 'ACCOUNT_TYPE',
-        });
-        const org = await fakeOrganization();
-        expect(await getFeatureAccess(org, FEATURE.ALIPAY)).to.deep.eq({
-          access: 'UNSUPPORTED',
-          reason: 'ACCOUNT_TYPE',
-        });
       });
     });
 
@@ -906,7 +952,6 @@ describe('server/lib/allowed-features', () => {
     describe('USER', () => {
       const basePermissions = {
         ABOUT: { access: 'AVAILABLE', reason: null },
-        ALIPAY: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         COLLECTIVE_GOALS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         CONNECTED_ACCOUNTS: { access: 'AVAILABLE', reason: null },
         CONTACT_COLLECTIVE: { access: 'AVAILABLE', reason: null },
@@ -979,7 +1024,6 @@ describe('server/lib/allowed-features', () => {
     describe('ORGANIZATION', () => {
       const basePermissions = {
         ABOUT: { access: 'AVAILABLE', reason: null },
-        ALIPAY: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         COLLECTIVE_GOALS: { access: 'DISABLED', reason: 'OPT_IN' },
         CONNECTED_ACCOUNTS: { access: 'AVAILABLE', reason: null },
         CONTACT_COLLECTIVE: { access: 'AVAILABLE', reason: null },
@@ -1036,7 +1080,6 @@ describe('server/lib/allowed-features', () => {
         const featuresMap = await getFeaturesAccessMap(hostOrg);
         expect(featuresMap).to.deep.equal({
           ...basePermissions,
-          ALIPAY: { access: 'AVAILABLE', reason: null },
           HOST_DASHBOARD: { access: 'AVAILABLE', reason: null },
           OFF_PLATFORM_TRANSACTIONS: { access: 'DISABLED', reason: 'OPT_IN' },
           PAYPAL_DONATIONS: { access: 'DISABLED', reason: 'OPT_IN' },
@@ -1054,7 +1097,6 @@ describe('server/lib/allowed-features', () => {
     describe('COLLECTIVE', () => {
       const basePermissions = {
         ABOUT: { access: 'AVAILABLE', reason: null },
-        ALIPAY: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         COLLECTIVE_GOALS: { access: 'DISABLED', reason: 'OPT_IN' },
         CONNECTED_ACCOUNTS: { access: 'AVAILABLE', reason: null },
         CONTACT_COLLECTIVE: { access: 'AVAILABLE', reason: null },
@@ -1120,7 +1162,6 @@ describe('server/lib/allowed-features', () => {
         const featuresMap = await getFeaturesAccessMap(selfHosted);
         expect(featuresMap).to.deep.equal({
           ...basePermissions,
-          ALIPAY: { access: 'AVAILABLE', reason: null },
           CHARGE_HOSTING_FEES: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
           CHART_OF_ACCOUNTS: { access: 'AVAILABLE', reason: null },
           EXPECTED_FUNDS: { access: 'AVAILABLE', reason: null },
@@ -1166,7 +1207,6 @@ describe('server/lib/allowed-features', () => {
     describe('FUND', () => {
       const basePermissions = {
         ABOUT: { access: 'AVAILABLE', reason: null },
-        ALIPAY: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         COLLECTIVE_GOALS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         CONNECTED_ACCOUNTS: { access: 'AVAILABLE', reason: null },
         CONTACT_COLLECTIVE: { access: 'AVAILABLE', reason: null },
@@ -1223,7 +1263,6 @@ describe('server/lib/allowed-features', () => {
     describe('PROJECT', () => {
       const basePermissions = {
         ABOUT: { access: 'AVAILABLE', reason: null },
-        ALIPAY: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         COLLECTIVE_GOALS: { access: 'DISABLED', reason: 'OPT_IN' },
         CONNECTED_ACCOUNTS: { access: 'AVAILABLE', reason: null },
         CONTACT_COLLECTIVE: { access: 'AVAILABLE', reason: null },
@@ -1280,7 +1319,6 @@ describe('server/lib/allowed-features', () => {
     describe('EVENT', () => {
       const basePermissions = {
         ABOUT: { access: 'AVAILABLE', reason: null },
-        ALIPAY: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         COLLECTIVE_GOALS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         CONNECTED_ACCOUNTS: { access: 'AVAILABLE', reason: null },
         CONTACT_COLLECTIVE: { access: 'AVAILABLE', reason: null },

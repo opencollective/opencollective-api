@@ -270,6 +270,18 @@ class Order extends ModelWithPublicId<
     needsAsyncReactivation?: boolean;
     createStatusChangeActivity?: boolean;
     isOCFShutdown?: boolean;
+    /** Set when the PayPal host of the subscription was not connected, so it could not be cancelled on PayPal */
+    paypalNotCancelledHostDisconnected?: boolean;
+    /** Set by `scripts/paypal/disconnect-host.ts` */
+    paypalHostDisconnection?: {
+      HostCollectiveId: number;
+      at: string;
+      reason: string;
+      previousStatus: string;
+      paypalOutcome: string;
+      paypalStatus?: string;
+      error?: string;
+    };
     resumeContribution?: {
       reminder: number;
       nextReminderDate: Date;

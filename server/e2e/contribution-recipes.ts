@@ -3,24 +3,38 @@ import { randomUUID } from 'crypto';
 import moment from 'moment';
 import { z } from 'zod';
 
+import { CollectiveType } from '../constants/collectives';
 import OrderStatuses from '../constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
 import roles from '../constants/roles';
 import { TransactionKind } from '../constants/transaction-kind';
 import { TransactionTypes } from '../constants/transactions';
-import { Member, Order, PaymentMethod, Subscription, Tier, Transaction } from '../models';
+import { roundCentsAmount } from '../lib/currency';
+import {
+  Collective,
+  ManualPaymentProvider,
+  Member,
+  Order,
+  PaymentMethod,
+  Subscription,
+  Tier,
+  Transaction,
+} from '../models';
+import { ManualPaymentProviderTypes } from '../models/ManualPaymentProvider';
 
 import {
   accountHandle,
   actorHandle,
+  arrangedBy,
   createActor,
   createHost,
   createHostedCollective,
+  createOrganization,
   defineRecipe,
   type Recipe,
 } from './builders';
 
-const inputs = z
+const recurringInputs = z
   .object({
     /** Monthly amount of the contribution, charged once already. */
     amount: z.number().int().min(100).default(100),
@@ -29,6 +43,24 @@ const inputs = z
      * (`Order.data.pendingTierChange`), as `updateOrder` leaves it.
      */
     pendingGoldTier: z.boolean().default(false),
+    /** The contribution adds a 15% platform tip to `amount`, which it may change (`platformTipEligible`). */
+    platformTip: z.boolean().default(false),
+  })
+  .strict();
+
+const contributionFlowInputs = z
+  .object({
+    /** The Collective asks contributors for a platform tip (`data.platformTips`). */
+    platformTips: z.boolean().default(false),
+    /** A one-time `Backer` tier of the Collective, $5 by default, from $0 (tier label `open`). */
+    openTier: z.boolean().default(false),
+    /** A `contributor` who administers an Organization (`organization`), and nothing else. */
+    contributorOrganization: z.boolean().default(false),
+    /**
+     * An Event of the Collective: `upcoming` (in a week, no tickets yet) or `past` (ended nine days ago, with a
+     * $10 ticket, tier label `ticket`).
+     */
+    event: z.enum(['upcoming', 'past']).optional(),
   })
   .strict();
 
@@ -39,7 +71,7 @@ export const contributionRecipes: Record<string, Recipe> = {
    * card. The contributor is a backer of the Collective. Updating the contribution is the journey's behavior.
    */
   'recurring-contribution': defineRecipe({
-    inputs,
+    inputs: recurringInputs,
     build: async (ctx, graph) => {
       const { transaction } = ctx;
       const hostAdmin = await createActor(ctx, 'host-admin');
@@ -107,9 +139,9 @@ export const contributionRecipes: Record<string, Recipe> = {
       const chargedAt = new Date();
       const nextChargeDate = moment().add(1, 'month').startOf('month').toDate();
       const amount = graph.pendingGoldTier ? gold.amount : graph.amount;
+      const platformTipAmount = graph.platformTip ? roundCentsAmount(amount * 0.15, 'USD') : 0;
       const subscription = await Subscription.create(
         {
-          amount,
           currency: 'USD',
           interval: 'month',
           isActive: true,
@@ -129,8 +161,9 @@ export const contributionRecipes: Record<string, Recipe> = {
           PaymentMethodId: paymentMethod.id,
           SubscriptionId: subscription.id,
           TierId: null,
-          totalAmount: amount,
-          platformTipAmount: 0,
+          totalAmount: amount + platformTipAmount,
+          platformTipAmount,
+          ...(graph.platformTip && { platformTipEligible: true }),
           currency: 'USD',
           interval: 'month',
           quantity: 1,
@@ -225,6 +258,130 @@ export const contributionRecipes: Record<string, Recipe> = {
           collectiveContributors: `/${collective.slug}/contributors`,
         },
       };
+    },
+  }),
+
+  /**
+   * A fiscal host accepting bank transfers (a manual payment provider: no Stripe), a hosted Collective
+   * administered by `admin`, and the optional parts a contribution flow journey starts from. Contributing is
+   * always the journey's behavior: nothing here is ordered or paid.
+   */
+  'contribution-flow': defineRecipe({
+    inputs: contributionFlowInputs,
+    build: async (ctx, graph) => {
+      const { transaction } = ctx;
+      const hostAdmin = await createActor(ctx, 'host-admin');
+      const admin = await createActor(ctx, 'admin');
+      const host = await createHost(ctx, hostAdmin);
+      ctx.checkConnection();
+      await ManualPaymentProvider.create(
+        {
+          CollectiveId: host.id,
+          type: ManualPaymentProviderTypes.BANK_TRANSFER,
+          name: 'Bank transfer',
+          instructions: '<p>Send {amount} to IBAN FR76 0000 0000 0000, reference {OrderId}.</p>',
+        },
+        { transaction },
+      );
+      const collective = await createHostedCollective(ctx, 'collective', { host, creator: admin, admins: [admin] });
+      if (graph.platformTips) {
+        // What `createCollective` stores from its `testPayload`, as the Cypress journeys arranged it
+        await collective.update({ data: { ...collective.data, platformTips: true } }, { transaction });
+      }
+
+      const tiers: Record<string, { legacyId: number; name: string }> = {};
+      if (graph.openTier) {
+        ctx.checkConnection();
+        const tier = await Tier.create(
+          {
+            CollectiveId: collective.id,
+            type: 'TIER',
+            name: 'Backer',
+            slug: 'backer',
+            currency: host.currency,
+            interval: null,
+            amountType: 'FLEXIBLE',
+            amount: 500,
+            minimumAmount: 0,
+            presets: [500, 1000, 2500, 5000],
+          },
+          { transaction },
+        );
+        tiers.open = { legacyId: tier.id, name: tier.name };
+      }
+
+      const actors: Record<string, ReturnType<typeof actorHandle>> = {
+        hostAdmin: actorHandle(hostAdmin),
+        admin: actorHandle(admin),
+      };
+      const accounts: Record<string, ReturnType<typeof accountHandle>> = {
+        host: accountHandle(host),
+        collective: accountHandle(collective),
+      };
+      const urls: Record<string, string> = {
+        donate: `/${collective.slug}/donate`,
+        contribute: `/${collective.slug}/contribute`,
+      };
+
+      if (graph.contributorOrganization) {
+        const contributor = await createActor(ctx, 'contributor');
+        const organization = await createOrganization(ctx, 'organization', contributor);
+        actors.contributor = actorHandle(contributor);
+        accounts.organization = accountHandle(organization);
+      }
+
+      if (graph.event) {
+        ctx.checkConnection();
+        const past = graph.event === 'past';
+        const startsAt = moment()
+          .add(past ? -10 : 7, 'days')
+          .startOf('day')
+          .add(19, 'hours');
+        const event = await Collective.create(
+          {
+            type: CollectiveType.EVENT,
+            name: past ? `Past event ${ctx.tag}` : `Event ${ctx.tag}`,
+            slug: ctx.slug('event'),
+            description: 'An independent Playwright Event',
+            // As `createEvent` copies them from an active parent
+            currency: collective.currency,
+            HostCollectiveId: collective.HostCollectiveId,
+            hostFeePercent: collective.hostFeePercent,
+            platformFeePercent: collective.platformFeePercent,
+            isActive: collective.isActive,
+            approvedAt: new Date(),
+            startsAt: startsAt.toDate(),
+            endsAt: startsAt.clone().add(1, 'day').toDate(),
+            timezone: 'UTC',
+            ParentCollectiveId: collective.id,
+            CreatedByUserId: admin.id,
+            settings: {},
+            data: arrangedBy(ctx),
+          },
+          { transaction },
+        );
+        if (past) {
+          // Something it was possible to buy before the Event ended
+          const ticket = await Tier.create(
+            {
+              CollectiveId: event.id,
+              type: 'TICKET',
+              name: 'Entry ticket',
+              slug: 'entry-ticket',
+              currency: event.currency,
+              amountType: 'FIXED',
+              amount: 1000,
+            },
+            { transaction },
+          );
+          tiers.ticket = { legacyId: ticket.id, name: ticket.name };
+        }
+        accounts.event = accountHandle(event);
+        urls.event = `/${collective.slug}/events/${event.slug}`;
+        urls.eventTickets = `/dashboard/${event.slug}/tickets`;
+      }
+
+      return { actors, accounts, tiers, vendors: {}, expenses: {}, urls };
     },
   }),
 };

@@ -2,6 +2,7 @@ import { expect } from 'chai';
 import type { Request } from 'express';
 import { cloneDeep } from 'lodash';
 import moment from 'moment';
+import nock from 'nock';
 
 import { expenseStatus } from '../../../../server/constants';
 import { CollectiveType } from '../../../../server/constants/collectives';
@@ -11,6 +12,7 @@ import POLICIES from '../../../../server/constants/policies';
 import { TransactionKind } from '../../../../server/constants/transaction-kind';
 import { allowContextPermission, PERMISSION_TYPE } from '../../../../server/graphql/common/context-permissions';
 import {
+  approveExpense,
   canApprove,
   canAttachReceipts,
   canComment,
@@ -41,6 +43,11 @@ import {
   checkHasBalanceToPayExpense,
   getExpenseAmountInDifferentCurrency,
   isAccountHolderNameAndLegalNameMatch,
+  markExpenseAsIncomplete,
+  markExpenseAsSpam,
+  rejectExpense,
+  requestExpenseReApproval,
+  unapproveExpense,
 } from '../../../../server/graphql/common/expenses';
 import { createTransactionsFromPaidExpense } from '../../../../server/lib/transactions';
 import models, { Collective } from '../../../../server/models';
@@ -58,7 +65,14 @@ import {
   fakeUser,
   fakeVendor,
 } from '../../../test-helpers/fake-data';
-import { getApolloErrorCode, getOrCreatePlatformAccount, makeRequest, resetTestDB } from '../../../utils';
+import {
+  getApolloErrorCode,
+  getOrCreatePlatformAccount,
+  makeRequest,
+  nockFixerRates,
+  resetCaches,
+  resetTestDB,
+} from '../../../utils';
 
 describe('server/graphql/common/expenses', () => {
   const contextShape = {
@@ -1987,6 +2001,63 @@ describe('server/graphql/common/expenses', () => {
           expect(await canApprove(makeRequest(author), expense)).to.be.false;
         }
       });
+
+      describe('with an expense in another currency', () => {
+        before(async () => {
+          await resetCaches();
+          nockFixerRates({ GBP: { USD: 1.25 }, JPY: { USD: 0.0067 } });
+        });
+
+        after(async () => {
+          nock.cleanAll();
+          await resetCaches();
+        });
+
+        it('compares the policy limit with the expense amount converted to the host currency', async () => {
+          const collectiveAdmin = await fakeUser();
+          const host = await fakeHost({ currency: 'USD' });
+          const collective = await fakeCollective({
+            currency: 'USD',
+            HostCollectiveId: host.id,
+            admin: collectiveAdmin,
+          });
+          await collectiveAdmin.populateRoles({ force: true });
+          await collective.setPolicies({
+            [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: { enabled: true, amountInCents: 1000e2 },
+          } as Parameters<typeof collective.setPolicies>[0]);
+
+          const payoutMethod = await fakePayoutMethod({ type: PayoutMethodTypes.OTHER });
+          const createExpense = async (amount: number, currency: string) => {
+            const expense = await fakeExpense({
+              CollectiveId: collective.id,
+              FromCollectiveId: collectiveAdmin.CollectiveId,
+              PayoutMethodId: payoutMethod.id,
+              UserId: collectiveAdmin.id,
+              status: 'PENDING',
+              amount,
+              currency,
+            });
+            expense.collective = collective;
+            return expense;
+          };
+
+          // 900 GBP = 1125 USD, above the 1000 USD limit
+          const gbpExpense = await createExpense(900e2, 'GBP');
+          expect(
+            await getApolloErrorCode(canApprove(makeRequest(collectiveAdmin), gbpExpense, { throw: true })),
+          ).to.equal(EXPENSE_PERMISSION_ERROR_CODES.AUTHOR_CANNOT_APPROVE);
+          expect(await canApprove(makeRequest(collectiveAdmin), gbpExpense)).to.be.false;
+
+          // 1500 JPY = 10 USD, below the 1000 USD limit
+          const jpyExpense = await createExpense(1500e2, 'JPY');
+          expect(await canApprove(makeRequest(collectiveAdmin), jpyExpense)).to.be.true;
+
+          // A failed conversion returns false instead of throwing
+          const failingReq = makeRequest(collectiveAdmin);
+          failingReq.loaders.CurrencyExchangeRate.convert.load = () => Promise.reject(new Error('FX unavailable'));
+          expect(await canApprove(failingReq, jpyExpense)).to.be.false;
+        });
+      });
     });
 
     describe('manually created virtual card charges', () => {
@@ -2381,6 +2452,111 @@ describe('server/graphql/common/expenses', () => {
           platformAdmin: false,
         });
       });
+    });
+  });
+
+  describe('status transitions with concurrent updates', () => {
+    const loadStaleExpense = async (status: string) => {
+      const { expense } = contexts.normal;
+      await expense.reload(); // Other tests update the row directly, bypassing this instance
+      await expense.update({ status, data: { ...expense.data, isLocked: false } });
+      return models.Expense.findByPk(expense.id);
+    };
+
+    for (const [name, action] of [
+      ['unapproveExpense', unapproveExpense],
+      ['requestExpenseReApproval', requestExpenseReApproval],
+    ] as const) {
+      describe(name, () => {
+        it('does not revert an expense that was paid concurrently', async () => {
+          const staleExpense = await loadStaleExpense('APPROVED');
+          // Simulate a concurrent payment that completed after the expense was loaded
+          await models.Expense.update({ status: 'PAID' }, { where: { id: staleExpense.id } });
+
+          await expect(action(contexts.normal.req.hostAdmin, staleExpense)).to.be.rejectedWith(
+            /The status of this expense changed \(PAID\)/,
+          );
+          await contexts.normal.expense.reload();
+          expect(contexts.normal.expense.status).to.eq('PAID');
+        });
+
+        it('does not update an expense that is being paid', async () => {
+          const staleExpense = await loadStaleExpense('APPROVED');
+          // Simulate a concurrent payment that is in progress (see `lockExpense`)
+          await models.Expense.update(
+            { data: { ...staleExpense.data, isLocked: true } },
+            { where: { id: staleExpense.id } },
+          );
+
+          await expect(action(contexts.normal.req.hostAdmin, staleExpense)).to.be.rejectedWith(
+            /currently being processed/,
+          );
+          await contexts.normal.expense.reload();
+          expect(contexts.normal.expense.status).to.eq('APPROVED');
+        });
+
+        it('updates the status when there is no concurrent update', async () => {
+          const staleExpense = await loadStaleExpense('APPROVED');
+          const result = await action(contexts.normal.req.hostAdmin, staleExpense);
+          expect(result.status).to.eq('PENDING');
+          await contexts.normal.expense.reload();
+          expect(contexts.normal.expense.status).to.eq('PENDING');
+        });
+      });
+    }
+
+    it('approveExpense does not override a concurrent status change', async () => {
+      const staleExpense = await loadStaleExpense('PENDING');
+      await models.Expense.update({ status: 'REJECTED' }, { where: { id: staleExpense.id } });
+      await expect(approveExpense(contexts.normal.req.hostAdmin, staleExpense)).to.be.rejectedWith(
+        /The status of this expense changed \(REJECTED\)/,
+      );
+      await contexts.normal.expense.reload();
+      expect(contexts.normal.expense.status).to.eq('REJECTED');
+    });
+
+    it('is a no-op when a concurrent request already made the same transition', async () => {
+      const staleExpense = await loadStaleExpense('APPROVED');
+      await models.Expense.update({ status: 'PENDING' }, { where: { id: staleExpense.id } });
+      const countActivities = () =>
+        models.Activity.count({ where: { ExpenseId: staleExpense.id, type: 'collective.expense.unapproved' } });
+      const activitiesBefore = await countActivities();
+
+      const result = await unapproveExpense(contexts.normal.req.hostAdmin, staleExpense);
+      expect(result.status).to.eq('PENDING');
+      expect(await countActivities()).to.eq(activitiesBefore);
+    });
+
+    it('markExpenseAsIncomplete does not override a concurrent payment', async () => {
+      const staleExpense = await loadStaleExpense('APPROVED');
+      await models.Expense.update({ status: 'PAID' }, { where: { id: staleExpense.id } });
+      await expect(markExpenseAsIncomplete(contexts.normal.req.hostAdmin, staleExpense)).to.be.rejectedWith(
+        /The status of this expense changed \(PAID\)/,
+      );
+      await contexts.normal.expense.reload();
+      expect(contexts.normal.expense.status).to.eq('PAID');
+    });
+
+    it('markExpenseAsSpam does not override a concurrent status change, nor limit the submitter', async () => {
+      const staleExpense = await loadStaleExpense('REJECTED');
+      await models.Expense.update({ status: 'APPROVED' }, { where: { id: staleExpense.id } });
+      await expect(markExpenseAsSpam(contexts.normal.req.hostAdmin, staleExpense)).to.be.rejectedWith(
+        /The status of this expense changed \(APPROVED\)/,
+      );
+      await contexts.normal.expense.reload();
+      expect(contexts.normal.expense.status).to.eq('APPROVED');
+      const submitter = await models.User.findByPk(contexts.normal.expense.UserId);
+      expect(submitter.data?.features?.USE_EXPENSES).to.not.eq(false);
+    });
+
+    it('rejectExpense does not override a concurrent status change', async () => {
+      const staleExpense = await loadStaleExpense('PENDING');
+      await models.Expense.update({ status: 'PAID' }, { where: { id: staleExpense.id } });
+      await expect(rejectExpense(contexts.normal.req.hostAdmin, staleExpense)).to.be.rejectedWith(
+        /The status of this expense changed \(PAID\)/,
+      );
+      await contexts.normal.expense.reload();
+      expect(contexts.normal.expense.status).to.eq('PAID');
     });
   });
 

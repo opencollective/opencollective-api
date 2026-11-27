@@ -1,13 +1,17 @@
 import { expect } from 'chai';
 import gql from 'fake-tag';
-import { PlaidApi } from 'plaid';
 import sinon from 'sinon';
 
 import PlatformConstants from '../../../../../server/constants/platform';
 import * as PlaidClient from '../../../../../server/lib/plaid/client';
 import { TwoFactorAuthenticationHeader } from '../../../../../server/lib/two-factor-authentication/lib';
 import models, { ConnectedAccount } from '../../../../../server/models';
-import { plaidItemPublicTokenExchangeResponse, plaidLinkTokenCreateResponse } from '../../../../mocks/plaid';
+import {
+  makePlaidClientStub,
+  PlaidClientStub,
+  plaidItemPublicTokenExchangeResponse,
+  plaidLinkTokenCreateResponse,
+} from '../../../../mocks/plaid';
 import {
   fakeActiveHost,
   fakeCollective,
@@ -20,7 +24,7 @@ import { generateValid2FAHeader, graphqlQueryV2 } from '../../../../utils';
 describe('server/graphql/v2/mutation/PlaidMutations', () => {
   let platform;
   let sandbox: sinon.SinonSandbox;
-  let stubPlaidAPI: sinon.SinonStubbedInstance<PlaidApi>;
+  let stubPlaidAPI: PlaidClientStub;
 
   const GENERATE_PLAID_LINK_TOKEN_MUTATION = gql`
     mutation GeneratePlaidLinkToken($host: AccountReferenceInput!) {
@@ -72,9 +76,9 @@ describe('server/graphql/v2/mutation/PlaidMutations', () => {
 
   beforeEach(async () => {
     // Stub plaid
-    stubPlaidAPI = sandbox.createStubInstance(PlaidApi);
-    stubPlaidAPI.linkTokenCreate = sandbox.stub().resolves(plaidLinkTokenCreateResponse);
-    stubPlaidAPI.itemPublicTokenExchange = sandbox.stub().resolves(plaidItemPublicTokenExchangeResponse);
+    stubPlaidAPI = makePlaidClientStub(sandbox);
+    stubPlaidAPI.link.createToken = sandbox.stub().resolves(plaidLinkTokenCreateResponse);
+    stubPlaidAPI.item.exchangePublicToken = sandbox.stub().resolves(plaidItemPublicTokenExchangeResponse);
     sandbox.stub(PlaidClient, 'getPlaidClient').returns(stubPlaidAPI);
   });
 
@@ -116,8 +120,8 @@ describe('server/graphql/v2/mutation/PlaidMutations', () => {
         expiration: '2075-01-01T00:00:00Z',
         requestId: 'valid-request-id',
       });
-      expect(stubPlaidAPI.linkTokenCreate).to.have.been.calledOnce;
-      expect(stubPlaidAPI.linkTokenCreate).to.have.been.calledOnceWith({
+      expect(stubPlaidAPI.link.createToken).to.have.been.calledOnce;
+      expect(stubPlaidAPI.link.createToken).to.have.been.calledOnceWith({
         /* eslint-disable camelcase */
         user: { client_user_id: remoteUser.id.toString() },
         client_name: 'Open Collective',
@@ -181,8 +185,8 @@ describe('server/graphql/v2/mutation/PlaidMutations', () => {
         },
       });
 
-      expect(stubPlaidAPI.itemPublicTokenExchange).to.have.been.calledOnce;
-      expect(stubPlaidAPI.itemPublicTokenExchange).to.have.been.calledOnceWith({
+      expect(stubPlaidAPI.item.exchangePublicToken).to.have.been.calledOnce;
+      expect(stubPlaidAPI.item.exchangePublicToken).to.have.been.calledOnceWith({
         /* eslint-disable camelcase */
         public_token: 'public-sandbox-valid',
         /* eslint-enable camelcase */
@@ -341,14 +345,10 @@ describe('server/graphql/v2/mutation/PlaidMutations', () => {
       // call to `linkTokenCreate` a unique token so tests can't accidentally share a cached session.
       let linkTokenCounter = 0;
       /* eslint-disable camelcase */
-      stubPlaidAPI.linkTokenCreate = sandbox.stub().callsFake(async () => ({
-        status: 200,
-        statusText: 'OK',
-        data: {
-          link_token: `link-token-${++linkTokenCounter}`,
-          expiration: '2075-01-01T00:00:00Z',
-          request_id: `request-id-${linkTokenCounter}`,
-        },
+      stubPlaidAPI.link.createToken = sandbox.stub().callsFake(async () => ({
+        link_token: `link-token-${++linkTokenCounter}`,
+        expiration: '2075-01-01T00:00:00Z',
+        request_id: `request-id-${linkTokenCounter}`,
       }));
       /* eslint-enable camelcase */
     });

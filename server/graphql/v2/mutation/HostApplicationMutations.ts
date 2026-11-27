@@ -126,6 +126,10 @@ const HostApplicationMutations = {
       const host = await fetchAccountWithReference(args.host);
       if (!host) {
         throw new NotFound('Host not found');
+      } else if (collective.hasActiveHost() && collective.HostCollectiveId !== host.id) {
+        throw new ValidationFailed(
+          'This account already has an active host. It must leave its current host before applying to a new one.',
+        );
       }
 
       const isProd = config.env === 'production';
@@ -496,6 +500,9 @@ const rejectApplication = async (host, collective, req, reason: string) => {
   }
   const { remoteUser } = req;
 
+  // Change the status of the application first: resetting the host expires the applications that are still pending
+  await models.HostApplication.updatePendingApplications(host, collective, HostApplicationStatus.REJECTED);
+
   // Reset host for collective & its children
   if (collective.HostCollectiveId === host.id) {
     await collective.changeHost(null, remoteUser);
@@ -519,9 +526,8 @@ const rejectApplication = async (host, collective, req, reason: string) => {
     },
   });
 
-  // Purge cache and change the status of the application
+  // Purge cache
   purgeCacheForCollective(collective.slug);
-  await models.HostApplication.updatePendingApplications(host, collective, HostApplicationStatus.REJECTED);
   return collective;
 };
 

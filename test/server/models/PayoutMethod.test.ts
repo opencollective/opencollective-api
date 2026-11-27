@@ -195,6 +195,53 @@ describe('server/models/PayoutMethod', () => {
       expect(payoutMethod.currency).to.eq('GBP');
       expect(payoutMethod.data.currency).to.eq('GBP');
     });
+
+    it('trims and collapses whitespace in the account holder name', async () => {
+      const user = await fakeUser();
+      const bankDetails = { legalType: 'PRIVATE', sortCode: '070806', accountNumber: '01656500' };
+      const payoutMethod = await models.PayoutMethod.createFromUserData(
+        {
+          type: PayoutMethodTypes.BANK_ACCOUNT,
+          name: undefined,
+          currency: undefined,
+          isSaved: false,
+          data: {
+            accountHolderName: '  Jane   Smith ',
+            currency: 'GBP',
+            type: 'sort_code',
+            details: bankDetails,
+          },
+        },
+        user,
+        user.collective,
+      );
+      expect((payoutMethod.data as { accountHolderName?: string }).accountHolderName).to.eq('Jane Smith');
+
+      await payoutMethod.update({ data: { ...payoutMethod.data, accountHolderName: 'John \t  Doe  ' } });
+      await payoutMethod.reload();
+      expect((payoutMethod.data as { accountHolderName?: string }).accountHolderName).to.eq('John Doe');
+    });
+
+    it('keeps the cleaned account holder name when the currency is only set on the column', async () => {
+      const user = await fakeUser();
+      const payoutMethod = await models.PayoutMethod.createFromUserData(
+        {
+          type: PayoutMethodTypes.BANK_ACCOUNT,
+          name: undefined,
+          currency: 'GBP',
+          isSaved: false,
+          data: {
+            accountHolderName: 'Jane   Smith',
+            type: 'sort_code',
+            details: { legalType: 'PRIVATE', sortCode: '070806', accountNumber: '01656500' },
+          },
+        } as any,
+        user,
+        user.collective,
+      );
+      expect((payoutMethod.data as { accountHolderName?: string }).accountHolderName).to.eq('Jane Smith');
+      expect(payoutMethod.data.currency).to.eq('GBP');
+    });
   });
 
   describe('findSimilar()', () => {
@@ -302,6 +349,34 @@ describe('server/models/PayoutMethod', () => {
   });
 
   describe('validate data', () => {
+    describe('for bank accounts', () => {
+      it('limits the length of the account holder name', async () => {
+        const user = await fakeUser();
+        const baseData = {
+          CollectiveId: user.collective.id,
+          CreatedByUserId: user.id,
+          type: PayoutMethodTypes.BANK_ACCOUNT,
+        };
+        const bankData = {
+          currency: 'GBP',
+          type: 'sort_code',
+          details: { sortCode: '070806', accountNumber: '01656500' },
+        };
+
+        const promise = models.PayoutMethod.create({
+          ...baseData,
+          data: { ...bankData, accountHolderName: 'A'.repeat(256) },
+        });
+        await expect(promise).to.be.rejectedWith(ValidationError, 'Invalid account holder name');
+
+        const pm = await models.PayoutMethod.create({
+          ...baseData,
+          data: { ...bankData, accountHolderName: 'A'.repeat(255) },
+        });
+        expect(pm).to.exist;
+      });
+    });
+
     describe('for PayPal', () => {
       it('check email', async () => {
         const user = await fakeUser();

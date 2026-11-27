@@ -45,7 +45,11 @@ const getNextChargeDateForUpdateContribution = (
 
   // We allow re-using the previous next charge date if it's no too old or if the next charge date is in the future (and the new date is supported)
   if (nextChargeIsFuture) {
-    if (isKeepingInterval && (allowReuseOfFutureOffCycleNextChargeDate || previousNextChargeDate.date() === 1)) {
+    // Yearly dates are always kept: re-aligning them to next Jan 1 could charge months before the paid year ends
+    if (
+      isKeepingInterval &&
+      (allowReuseOfFutureOffCycleNextChargeDate || previousNextChargeDate.date() === 1 || newInterval === 'year')
+    ) {
       return [previousNextChargeDate, previousNextPeriodStart];
     }
   } else if (now.diff(previousNextChargeDate, 'days') < maxDiffInDaysToReusePreviousNextChargeDate) {
@@ -63,6 +67,9 @@ const getNextChargeDateForUpdateContribution = (
     return [newDates, newDates];
   } else if (previousNextChargeDate.date() > 15) {
     // Set the next charge date to 2 months time if the subscription was made after 15th of the month.
+    // Counting from `now` is intended: once the previous date can't be reused (for example, a PayPal date
+    // estimated by the webhook), we treat the update like a new contribution started today.
+    // See 'after the 15th of the month => skip next month' in test/server/lib/subscriptions.test.ts.
     const newDates = now.add(2, 'months').startOf('month');
     return [newDates, newDates];
   } else {
@@ -255,7 +262,6 @@ export const updateSubscriptionDetails = async (
   // check if the amount is different from the previous amount
   if (amountInCents !== order.totalAmount) {
     newOrderData['totalAmount'] = amountInCents;
-    newSubscriptionData['amount'] = amountInCents;
   }
 
   if (platformTipAmount !== order.platformTipAmount) {

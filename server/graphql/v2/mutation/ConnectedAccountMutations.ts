@@ -12,6 +12,7 @@ import { disconnectPlaidAccount } from '../../../lib/plaid/connect';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import type { ConnectedAccount as ConnectedAccountModel } from '../../../models';
 import models from '../../../models';
+import { findOrderIdsWithActivePaypalSubscriptionForHost } from '../../../paymentProviders/paypal/subscription-host';
 import { checkIsValidBalanceAccountingCategory } from '../../common/balance-accounting-categories';
 import { checkRemoteUserCanUseConnectedAccounts } from '../../common/scope-check';
 import { Forbidden, Unauthorized, ValidationFailed } from '../../errors';
@@ -68,6 +69,14 @@ const connectedAccountMutations = {
           throw new ValidationFailed('This token is already being used');
         }
 
+        // Webhooks and API calls assume a single PayPal payments account per host
+        const existingPaypalAccount = await paypal.getHostPaypalAccount(collective);
+        if (existingPaypalAccount) {
+          throw new ValidationFailed(
+            'This host already has a PayPal account connected. Disconnect it before connecting a new one.',
+          );
+        }
+
         if (args.connectedAccount.service === Service.PAYPAL) {
           try {
             await paypal.validateConnectedAccount(args.connectedAccount);
@@ -121,10 +130,17 @@ const connectedAccountMutations = {
       } else if (connectedAccount.service === Service.GOCARDLESS) {
         await disconnectGoCardlessAccount(connectedAccount);
       } else if (([Service.STRIPE, Service.PAYPAL] as string[]).includes(connectedAccount.service)) {
-        const nbActiveOrders = await models.Order.countActiveRecurringForPaymentService({
+        let nbActiveOrders = await models.Order.countActiveRecurringForPaymentService({
           service: connectedAccount.service as Service.STRIPE | Service.PAYPAL,
           HostCollectiveId: connectedAccount.CollectiveId,
         });
+
+        // PayPal subscriptions live on the PayPal account of the host that charges them, which can be a previous
+        // host of the collective (e.g. collectives that moved or got archived): they must be counted too.
+        if (!nbActiveOrders && connectedAccount.service === Service.PAYPAL) {
+          const paypalOrderIds = await findOrderIdsWithActivePaypalSubscriptionForHost(connectedAccount.CollectiveId);
+          nbActiveOrders = paypalOrderIds.length;
+        }
 
         if (nbActiveOrders > 0) {
           throw new ValidationFailed(

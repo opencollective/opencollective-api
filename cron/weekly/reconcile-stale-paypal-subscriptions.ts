@@ -24,6 +24,7 @@ import FEATURE from '../../server/constants/feature';
 import ORDER_STATUS from '../../server/constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../server/constants/paymentMethods';
 import logger from '../../server/lib/logger';
+import { getHostPaypalAccount } from '../../server/lib/paypal';
 import { reportErrorToSentry, reportMessageToSentry } from '../../server/lib/sentry';
 import { parseToBoolean } from '../../server/lib/utils';
 import models, { Collective, Op, Order } from '../../server/models';
@@ -31,6 +32,7 @@ import {
   fetchPaypalSubscription,
   markPaypalSubscriptionAsCancelledInDb,
 } from '../../server/paymentProviders/paypal/subscription';
+import { getPaypalHostForOrder } from '../../server/paymentProviders/paypal/subscription-host';
 import { PayPalSubscription } from '../../server/types/paypal';
 import { onlyExecuteInProdOnMondays, runCronJob } from '../utils';
 
@@ -141,7 +143,7 @@ const markContributionAsCancelled = async (
  */
 const reconcileStaleContribution = async (
   order: Order,
-  { dryRun }: { dryRun: boolean },
+  { dryRun, hostsCache }: { dryRun: boolean; hostsCache: Record<number, Collective> },
 ): Promise<ReconciliationOutcome> => {
   const subscription = order.Subscription;
   const paymentMethod = order.paymentMethod;
@@ -156,11 +158,17 @@ const reconcileStaleContribution = async (
     return 'skipped';
   }
 
-  const host = await order.collective.getHostCollective();
+  // The subscription lives on the PayPal account of the host that charges it, which is not necessarily the
+  // collective's current host (e.g. collectives that changed host)
+  const host = await getPaypalHostForOrder(order, { hostsCache });
   if (!host) {
     logger.warn(`Skipping order #${order.id}: collective ${order.collective.slug} has no host`);
     return 'skipped';
   } else if (!isHostSelected(host)) {
+    return 'skipped';
+  } else if (!(await getHostPaypalAccount(host))) {
+    // Handled by `scripts/paypal/disconnect-host.ts`
+    logger.warn(`Skipping order #${order.id}: PayPal host @${host.slug} is not connected to PayPal`);
     return 'skipped';
   }
 
@@ -242,9 +250,10 @@ export const run = async (options: RunOptions = {}): Promise<void> => {
     error: 0,
   };
 
+  const hostsCache: Record<number, Collective> = {};
   for (const order of orders) {
     try {
-      summary[await reconcileStaleContribution(order, { dryRun })]++;
+      summary[await reconcileStaleContribution(order, { dryRun, hostsCache })]++;
     } catch (e) {
       summary.error++;
       logger.error(`Error while reconciling order #${order.id}: ${e.message}`);

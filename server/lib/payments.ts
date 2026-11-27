@@ -1031,7 +1031,6 @@ export const sendEmailNotifications = (
 
 export const createSubscription = async (order: Order, data?: { lastChargedAt?: Date }): Promise<void> => {
   const subscription = await Subscription.create({
-    amount: order.totalAmount,
     interval: order.interval,
     currency: order.currency,
     lastChargedAt: data?.lastChargedAt,
@@ -1274,7 +1273,9 @@ export const sendOrderPendingEmail = async (order: Order): Promise<void> => {
   const user = order.createdByUser;
   const host = await collective.getHostCollective();
 
-  // Use manual payment provider if available, otherwise fall back to legacy manual bank transfer
+  // v1 `createOrder` requires a manual payment provider and sets `ManualPaymentProviderId` for manual payments.
+  // Migration 20260115143930 backfilled providers only for legacy bank-transfer orders that it matches, so some
+  // legacy orders can still have no provider. There is no legacy fallback any more, so a missing provider is an error.
   let providerAccount;
   let providerInstructions;
   let providerName;

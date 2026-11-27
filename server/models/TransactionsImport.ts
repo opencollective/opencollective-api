@@ -1,5 +1,5 @@
 import { mapValues, omit, uniq } from 'lodash';
-import { AccountSubtype, AccountType } from 'plaid';
+import { Plaid } from 'plaid';
 import type {
   BelongsToGetAssociationMixin,
   ForeignKey,
@@ -73,8 +73,8 @@ const dataSchema = z
               mask: z.string(),
               name: z.string(),
               officialName: z.string(),
-              subtype: z.nativeEnum(AccountSubtype),
-              type: z.nativeEnum(AccountType),
+              subtype: z.nativeEnum(Plaid.AccountSubtype),
+              type: z.nativeEnum(Plaid.AccountType),
             }),
           )
           .optional(),

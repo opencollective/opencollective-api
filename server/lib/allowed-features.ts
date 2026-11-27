@@ -53,9 +53,6 @@ const FeaturesAccess: Partial<
     }
   >
 > = {
-  [FEATURE.ALIPAY]: {
-    onlyAllowedFor: [FEATURE_ACCESS_PARTY.ACTIVE_ORGANIZATIONS, FEATURE_ACCESS_PARTY.INDEPENDENT_COLLECTIVES],
-  },
   [FEATURE.AGREEMENTS]: {
     onlyAllowedFor: FEATURE_ACCESS_PARTY.HOSTS,
   },
@@ -248,15 +245,15 @@ const FEATURES_NOT_AFFECTED_BY_SUSPENSION = [FEATURE.PUBLIC_PROFILE];
  * use `hasFeature` to properly check a feature activation.
  */
 export const isFeatureBlockedForAccount = (collective: Collective, feature: FEATURE | `${FEATURE}`): boolean => {
+  // Read with plain property accesses: this runs for every feature of every account, where `get` with a path was
+  // most of the time spent resolving feature statuses.
+  const data = collective?.data;
+  const features = data?.features;
   if (FEATURES_NOT_AFFECTED_BY_SUSPENSION.includes(feature as FEATURE)) {
-    return get(collective, `data.features.${feature}`) === false;
+    return features?.[feature] === false;
   }
 
-  return (
-    get(collective, `data.features.${FEATURE.ALL}`) === false ||
-    get(collective, `data.features.${feature}`) === false ||
-    get(collective, `data.isSuspended`) === true
-  );
+  return features?.[FEATURE.ALL] === false || features?.[feature] === false || data?.isSuspended === true;
 };
 
 const checkFeatureAccessParty = (
@@ -327,7 +324,7 @@ const hasOptInFlag = (
     enabledByDefaultFor,
   }: { flagOverride?: string; enabledByDefaultFor?: FEATURE_ACCESS_PARTY | readonly FEATURE_ACCESS_PARTY[] },
 ): boolean => {
-  if (get(collective, `data.features.${feature}`)) {
+  if (collective?.data?.features?.[feature]) {
     return true;
   } else if (flagOverride && get(collective, flagOverride)) {
     return true;
@@ -340,26 +337,17 @@ const hasOptInFlag = (
 
 type ErrorReason = 'BLOCKED' | 'PRICING' | 'ACCOUNT_TYPE' | 'NEED_HOST' | 'OPT_IN' | 'REGION';
 
+type FeatureAccess = { access: FEATURE_ACCESS; reason: ErrorReason | null };
+
 /**
- * Returns the access level for a feature.
+ * The part of `getFeatureAccess` that is decided by the account alone, without loading anything.
  *
- * @param collective - The collective to check the feature access for.
- * @param feature - The feature to check the access for.
- * @returns The access level for the feature.
+ * @returns The access level for the feature, or `null` when it depends on the pricing plan of the host.
  */
-export const getFeatureAccess = async (
+export const getFeatureAccessWithoutPricing = (
   collective: Collective,
   feature: FEATURE | `${FEATURE}`,
-  {
-    loaders = null,
-  }: {
-    /** Pass loader to optimize DB calls when available */
-    loaders?: Loaders;
-  } = {},
-): Promise<{
-  access: FEATURE_ACCESS;
-  reason: ErrorReason | null;
-}> => {
+): FeatureAccess | null => {
   if (!collective) {
     return { access: 'UNSUPPORTED', reason: null };
   } else if (isFeatureBlockedForAccount(collective, feature)) {
@@ -386,7 +374,7 @@ export const getFeatureAccess = async (
 
     // Check opt-out flag
     if (
-      get(collective, `data.features.${feature}`) === false ||
+      collective.data?.features?.[feature] === false ||
       (featureAccess.flagOverride && get(collective, featureAccess.flagOverride) === false)
     ) {
       return { access: 'DISABLED', reason: 'BLOCKED' };
@@ -413,29 +401,53 @@ export const getFeatureAccess = async (
     }
   }
 
+  return isPayingFeature(feature) && !collective.isPlatformAccount() ? null : { access: 'AVAILABLE', reason: null };
+};
+
+/**
+ * Returns the access level for a feature.
+ *
+ * @param collective - The collective to check the feature access for.
+ * @param feature - The feature to check the access for.
+ * @returns The access level for the feature.
+ */
+export const getFeatureAccess = async (
+  collective: Collective,
+  feature: FEATURE | `${FEATURE}`,
+  {
+    loaders = null,
+  }: {
+    /** Pass loader to optimize DB calls when available */
+    loaders?: Loaders;
+  } = {},
+): Promise<FeatureAccess> => {
+  const accessWithoutPricing = getFeatureAccessWithoutPricing(collective, feature);
+  if (accessWithoutPricing) {
+    return accessWithoutPricing;
+  }
+
   // Check pricing
-  if (isPayingFeature(feature) && !collective.isPlatformAccount()) {
-    const host = await loadHost(collective, loaders);
-    if (!host) {
-      return { access: 'UNSUPPORTED', reason: 'NEED_HOST' };
-    }
+  const featureAccess = FeaturesAccess[feature];
+  const host = await loadHost(collective, loaders);
+  if (!host) {
+    return { access: 'UNSUPPORTED', reason: 'NEED_HOST' };
+  }
 
-    // With legacy plans
-    if (host.plan) {
-      if (featureAccess?.optIn === 'legacy-pricing' && !hasOptInFlag(collective, feature, featureAccess)) {
-        return { access: 'DISABLED', reason: 'OPT_IN' };
-      } else {
-        return { access: 'AVAILABLE', reason: null }; // Legacy plans don't support feature customization
-      }
-    }
-
-    // Check if the feature is part of the host plan
-    const subscription = await loadPlatformSubscription(host.id, loaders);
-    if (!subscription || !get(subscription, `plan.features.${feature}`)) {
-      return { access: 'DISABLED', reason: 'PRICING' };
-    } else if (featureAccess?.optIn === 'new-pricing' && !hasOptInFlag(host, feature, featureAccess)) {
+  // With legacy plans
+  if (host.plan) {
+    if (featureAccess?.optIn === 'legacy-pricing' && !hasOptInFlag(collective, feature, featureAccess)) {
       return { access: 'DISABLED', reason: 'OPT_IN' };
+    } else {
+      return { access: 'AVAILABLE', reason: null }; // Legacy plans don't support feature customization
     }
+  }
+
+  // Check if the feature is part of the host plan
+  const subscription = await loadPlatformSubscription(host.id, loaders);
+  if (!subscription || !get(subscription, `plan.features.${feature}`)) {
+    return { access: 'DISABLED', reason: 'PRICING' };
+  } else if (featureAccess?.optIn === 'new-pricing' && !hasOptInFlag(host, feature, featureAccess)) {
+    return { access: 'DISABLED', reason: 'OPT_IN' };
   }
 
   return { access: 'AVAILABLE', reason: null };

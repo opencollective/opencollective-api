@@ -375,6 +375,8 @@ const computeOrderSummary = orders => {
     totalAmount: '',
     totalAmountPerCurrency: {},
     Subscription: null,
+    recurringAmount: null,
+    recurringCurrency: null,
   };
   if (orders && orders.length > 0) {
     for (const order of orders) {
@@ -383,6 +385,8 @@ const computeOrderSummary = orders => {
 
       if (order.Subscription && order.Subscription.isActive) {
         orderSummary.Subscription = order.Subscription.dataValues;
+        orderSummary.recurringAmount = order.totalAmount;
+        orderSummary.recurringCurrency = order.currency;
       }
     }
   }

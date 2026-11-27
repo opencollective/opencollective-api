@@ -7,7 +7,7 @@ Subject: Your contribution to {{{collective.name}}} has been paused
 {{#if isOCFShutdown}}
   <p>
     {{>linkCollective collective=collective}} is in the process of transitioning between fiscal hosts. Your recurring contribution for
-    {{currency subscription.amount currency=subscription.currency}}/{{subscription.interval}} has been paused.
+    {{currency order.totalAmount currency=order.currency}}/{{order.interval}} has been paused.
   </p>
   <p>
     We’ll let you know when {{>linkCollective collective=collective}} has successfully transitioned to their new fiscal host. You will be prompted to reactivate your contribution so you can continue supporting {{>linkCollective collective=collective}}’s impactful work.
@@ -16,7 +16,7 @@ Subject: Your contribution to {{{collective.name}}} has been paused
     Please don’t hesitate to <a href="https://opencollective.com/contact">reach out to our support team</a> if you have any questions.
   </p>
 {{else}}
-  <p>Your recurring contribution to {{>linkCollective collective=collective}} for {{currency subscription.amount currency=subscription.currency}}/{{subscription.interval}} has been paused.</p>
+  <p>Your recurring contribution to {{>linkCollective collective=collective}} for {{currency order.totalAmount currency=order.currency}}/{{order.interval}} has been paused.</p>
 
   {{#if messageForContributors}}
     {{#if (isEqual messageSource "COLLECTIVE")}}

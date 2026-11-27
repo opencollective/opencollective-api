@@ -80,3 +80,23 @@ export const generateOrderTotalContributedLoader = (): DataLoader<number, number
     const orders = sortResultsSimple(orderIds, totalAmountsPerOrderId, result => result.OrderId);
     return orders.map(t => t?.totalAmount);
   });
+
+/**
+ * Returns the date of the latest payment for each order, based on its CREDIT CONTRIBUTION transactions.
+ */
+export const generateOrderLastChargedAtLoader = (): DataLoader<number, Date | null> =>
+  new DataLoader(async (orderIds: number[]) => {
+    const results = (await models.Transaction.findAll({
+      attributes: ['OrderId', [sequelize.fn('MAX', sequelize.col('createdAt')), 'lastChargedAt']],
+      where: {
+        OrderId: { [Op.in]: orderIds },
+        type: TransactionTypes.CREDIT,
+        kind: TransactionKind.CONTRIBUTION,
+        isRefund: false,
+      },
+      group: ['OrderId'],
+      raw: true,
+    })) as unknown as { OrderId: number; lastChargedAt: Date }[];
+
+    return sortResultsSimple(orderIds, results, result => result.OrderId).map(r => r?.lastChargedAt || null);
+  });
