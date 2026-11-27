@@ -4421,6 +4421,111 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         expect(order.status).to.equal(OrderStatuses.PENDING);
       });
 
+      describe('when marking as paid fails', () => {
+        const failureSandbox = createSandbox();
+        afterEach(() => failureSandbox.restore());
+
+        const prepareEditedMarkAsPaid = async () => {
+          await order.update({ platformTipAmount: 0 });
+          const transactionsImport = await fakeTransactionsImport({ CollectiveId: host.id, type: 'CSV' });
+          const row = await fakeTransactionsImportRow({
+            TransactionsImportId: transactionsImport.id,
+            status: 'PENDING',
+          });
+          const variables = {
+            action: 'MARK_AS_PAID',
+            order: {
+              id: idEncode(order.id, 'order'),
+              amount: { valueInCents: 50000, currency: 'USD' },
+              platformTip: { valueInCents: 700, currency: 'USD' },
+              paymentProcessorFee: { valueInCents: 100, currency: 'USD' },
+              hostFeePercent: 7,
+              transactionsImportRow: { id: idEncode(row.id, 'transactions-import-row') },
+            },
+          };
+          return { row, variables };
+        };
+
+        const expectUnchanged = async row => {
+          await order.reload();
+          await row.reload();
+          expect(order.status).to.eq(OrderStatuses.PENDING);
+          expect(await models.Transaction.count({ where: { OrderId: order.id } })).to.eq(0);
+          expect({
+            totalAmount: order.totalAmount,
+            platformTipAmount: order.platformTipAmount,
+            paymentProcessorFee: order.data?.paymentProcessorFee,
+            hostFeePercent: order.data?.hostFeePercent,
+            rowStatus: row.status,
+            rowOrderId: row.OrderId,
+          }).to.deep.eq({
+            totalAmount: 10000,
+            platformTipAmount: 0,
+            paymentProcessorFee: undefined,
+            hostFeePercent: undefined,
+            rowStatus: 'PENDING',
+            rowOrderId: null,
+          });
+        };
+
+        it('leaves the contribution and the import row unchanged when the tier does not belong to the destination collective', async () => {
+          const foreignTier = await fakeTier({ currency: 'USD' });
+          await order.update({ TierId: foreignTier.id });
+          const { row, variables } = await prepareEditedMarkAsPaid();
+          const result = await graphqlQueryV2(processPendingOrderMutation, variables, hostAdminUser);
+          expect(result.errors).to.exist;
+          expect(result.errors[0].message).to.match(/is not part of collective/);
+          await expectUnchanged(row);
+        });
+
+        it('leaves the contribution and the import row unchanged when recording the payment fails', async () => {
+          const { row, variables } = await prepareEditedMarkAsPaid();
+          failureSandbox.stub(models.Order.prototype, 'markAsPaid').rejects(new Error('markAsPaid failed'));
+          const result = await graphqlQueryV2(processPendingOrderMutation, variables, hostAdminUser);
+          expect(result.errors).to.exist;
+          expect(result.errors[0].message).to.match(/markAsPaid failed/);
+          await expectUnchanged(row);
+
+          // The same import row can be used again once the error is fixed
+          failureSandbox.restore();
+          const retry = await graphqlQueryV2(processPendingOrderMutation, variables, hostAdminUser);
+          retry.errors && console.error(retry.errors);
+          expect(retry.errors).to.not.exist;
+          expect(retry.data.processPendingOrder.status).to.eq('PAID');
+          await order.reload();
+          await row.reload();
+          expect(order.totalAmount).to.eq(50700);
+          expect(row.OrderId).to.eq(order.id);
+        });
+
+        it('keeps the edits and the linked import row when it fails after recording the payment', async () => {
+          const { row, variables } = await prepareEditedMarkAsPaid();
+          // Called by `executeOrder` after the transactions are created and the order is marked as PAID
+          failureSandbox
+            .stub(models.Order.prototype, 'getOrCreateMembers')
+            .rejects(new Error('getOrCreateMembers failed'));
+          const result = await graphqlQueryV2(processPendingOrderMutation, variables, hostAdminUser);
+          expect(result.errors).to.exist;
+          expect(result.errors[0].message).to.match(/getOrCreateMembers failed/);
+
+          await order.reload();
+          await row.reload();
+          expect(await models.Transaction.count({ where: { OrderId: order.id } })).to.be.above(0);
+          expect(order.status).to.eq(OrderStatuses.PAID);
+          expect({
+            totalAmount: order.totalAmount,
+            platformTipAmount: order.platformTipAmount,
+            rowStatus: row.status,
+            rowOrderId: row.OrderId,
+          }).to.deep.eq({
+            totalAmount: 50700,
+            platformTipAmount: 700,
+            rowStatus: 'LINKED',
+            rowOrderId: order.id,
+          });
+        });
+      });
+
       it('should mark as paid', async () => {
         const result = await graphqlQueryV2(
           processPendingOrderMutation,

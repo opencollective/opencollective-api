@@ -2,6 +2,7 @@ import config from 'config';
 import type express from 'express';
 import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import {
+  cloneDeep,
   difference,
   flatten,
   get,
@@ -844,8 +845,18 @@ const orderMutations = {
           );
         }
 
+        // Check the tier before writing anything
+        if (order.TierId) {
+          const tierForValidation = await req.loaders.Tier.byId.load(order.TierId);
+          OrdersLib.assertTierBelongsToAccount(tierForValidation, toAccount);
+        }
+
+        // Edits are saved before `markAsPaid`, which cannot run in the same DB transaction. Keep what we need
+        // to put them back if it fails without recording the payment.
+        let restoreEdits: (() => Promise<void>) | null = null;
         const hasChanges = !isEmpty(difference(keys(args.order), ['id', 'legacyId', 'publicId']));
         if (hasChanges) {
+          const originalOrderValues = cloneDeep(order.dataValues);
           const { amount, paymentProcessorFee, platformTip, hostFeePercent, processedAt, tax } = args.order;
 
           // Ensure amounts are provided with the right currency
@@ -958,20 +969,39 @@ const orderMutations = {
             }
           }
 
+          const previousOrderValues = pick(originalOrderValues, order.changed() || []);
+          const previousImportRowValues = transactionsImportRow && pick(transactionsImportRow, ['OrderId', 'status']);
           await sequelize.transaction(async transaction => {
             await order.save({ transaction });
             if (transactionsImportRow) {
               await transactionsImportRow.update({ OrderId: order.id, status: 'LINKED' }, { transaction });
             }
           });
+
+          const orderId = order.id;
+          restoreEdits = async () => {
+            await sequelize.transaction(async transaction => {
+              await models.Order.update(previousOrderValues, { where: { id: orderId }, transaction });
+              if (transactionsImportRow) {
+                await transactionsImportRow.update(previousImportRowValues, { transaction });
+              }
+            });
+          };
         }
 
-        if (order.TierId) {
-          const tierForValidation = await req.loaders.Tier.byId.load(order.TierId);
-          OrdersLib.assertTierBelongsToAccount(tierForValidation, toAccount);
+        try {
+          order = await order.markAsPaid(req.remoteUser);
+        } catch (error) {
+          // Only put the edits back if no payment was recorded: otherwise they match the ledger
+          if (restoreEdits && !(await models.Transaction.count({ where: { OrderId: order.id } }))) {
+            try {
+              await restoreEdits();
+            } catch (restoreError) {
+              reportErrorToSentry(restoreError, { req, extra: { orderId: order.id } });
+            }
+          }
+          throw error;
         }
-
-        order = await order.markAsPaid(req.remoteUser);
 
         const tier = order.TierId && (await req.loaders.Tier.byId.load(order.TierId));
         await models.Activity.create({
