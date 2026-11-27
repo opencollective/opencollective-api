@@ -737,7 +737,31 @@ async function createOrRetrieveStripePaymentMethod(
 
 export const UNKNOWN_ERROR_MSG = 'Something went wrong with the payment, please contact support@opencollective.com.';
 
-export function userFriendlyErrorMessage(error: { message: string }) {
+/**
+ * Stripe error codes for US bank accounts (ACH) verified with microdeposits. The payer receives an email from
+ * Stripe with a link to confirm the deposits; if they don't do it within 10 days, Stripe cancels the payment.
+ * See https://docs.stripe.com/payments/ach-direct-debit/accept-a-payment#microdeposit-verification
+ */
+const MICRODEPOSIT_VERIFICATION_ERRORS = {
+  // eslint-disable-next-line camelcase
+  payment_method_microdeposit_verification_timeout:
+    'The payment was canceled because your bank account was not verified within 10 days. To verify a bank account with microdeposits, use the link Stripe sends by email after the deposits arrive. Please make a new contribution and verify your bank account.',
+  // eslint-disable-next-line camelcase
+  payment_method_microdeposit_verification_attempts_exceeded:
+    'The payment was canceled because the maximum number of attempts to verify your bank account was exceeded. Please make a new contribution or use a different payment method.',
+  // eslint-disable-next-line camelcase
+  payment_method_microdeposit_verification_amounts_mismatch:
+    'The amounts provided to verify your bank account do not match the deposits sent to it.',
+  // eslint-disable-next-line camelcase
+  payment_method_microdeposit_verification_descriptor_code_mismatch:
+    'The code provided to verify your bank account does not match the deposit sent to it.',
+};
+
+export function userFriendlyErrorMessage(error: { message: string; code?: string }) {
+  if (error.code && MICRODEPOSIT_VERIFICATION_ERRORS[error.code]) {
+    return MICRODEPOSIT_VERIFICATION_ERRORS[error.code];
+  }
+
   const identifiedErrors = {
     // This object cannot be accessed right now because another API request or Stripe process is currently accessing it.
     // If you see this error intermittently, retry the request.
@@ -761,7 +785,7 @@ export function userFriendlyErrorMessage(error: { message: string }) {
     // eslint-disable-next-line camelcase
     card_error_authentication_required: 'There is an issue with your card, please contact support@opencollective.com.',
   };
-  const errorKey = Object.keys(identifiedErrors).find(errorMessage => error.message.includes(errorMessage));
+  const errorKey = Object.keys(identifiedErrors).find(errorMessage => error.message?.includes(errorMessage));
   if (errorKey) {
     return identifiedErrors[errorKey];
   }

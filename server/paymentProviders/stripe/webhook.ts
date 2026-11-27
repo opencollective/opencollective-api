@@ -702,7 +702,10 @@ const handleOrderPaymentIntentFailed = async (event: Stripe.Event) => {
 
   const charge = getPaymentIntentCharge(stripePaymentIntent);
   const reason = stripePaymentIntent.last_payment_error?.message || charge?.failure_message || 'unknown';
-  logger.info(`Stripe Webook: Payment Intent failed for Order #${order.id}. Reason: ${reason}`);
+  const errorCode = stripePaymentIntent.last_payment_error?.code;
+  logger.info(
+    `Stripe Webook: Payment Intent failed for Order #${order.id}. Reason: ${reason}${errorCode ? ` (${errorCode})` : ''}`,
+  );
 
   const wasCancelled = order.status === OrderStatuses.CANCELLED;
   const wasAlreadyFailed = order.status === OrderStatuses.ERROR;
@@ -724,7 +727,9 @@ const handleOrderPaymentIntentFailed = async (event: Stripe.Event) => {
     });
   }
 
-  const userFriendlyError = userFriendlyErrorMessage({ message: reason }) || UNKNOWN_ERROR_MSG;
+  const userFriendlyError =
+    userFriendlyErrorMessage({ message: reason, code: stripePaymentIntent.last_payment_error?.code }) ||
+    UNKNOWN_ERROR_MSG;
 
   if (order.SubscriptionId) {
     const subscription = await models.Subscription.findByPk(order.SubscriptionId);
