@@ -1,18 +1,21 @@
 /**
  * Emails contributors who reached a host's `CONTRIBUTOR_INFO_THRESHOLDS` without the matching information on their
- * profile. Shared by the daily cron and the manual script, so both apply the same dedup and reminder rules.
+ * profile. Shared by the daily cron and the manual script, so both apply the same dedup and reminder rules. Also sends
+ * the manual requests of host admins (`requestContributorInfo` mutation), recorded the same way.
  *
  * State lives in the profile's `contributor.info.requested` activities, one entry per host and year.
  */
 
-import { groupBy, uniq } from 'lodash';
+import { createHash } from 'crypto';
+
+import { groupBy, isEmpty, uniq } from 'lodash';
 import moment from 'moment';
 
 import ActivityTypes from '../constants/activities';
 import { CollectiveType } from '../constants/collectives';
-import { Activity, Collective, Op, User } from '../models';
+import { Activity, Collective, Location, Op, User } from '../models';
 
-import { findProfilesMissingInfo } from './contributor-info';
+import { findProfilesMissingInfo, isValidLegalName, locationHasAddress } from './contributor-info';
 import emailLib, { getTemplateAttributes } from './email';
 import logger from './logger';
 import { reportErrorToSentry } from './sentry';
@@ -21,6 +24,9 @@ const TEMPLATE = ActivityTypes.CONTRIBUTOR_INFO_REQUESTED;
 
 type MissingField = 'legalName' | 'address';
 
+/** Parts of a structured address a host can ask to correct, as stored in `Location.structured` (plus the country) */
+export type AddressPart = 'address1' | 'address2' | 'city' | 'postalCode' | 'zone' | 'country';
+
 type ActivityHostEntry = {
   id: number;
   slug: string;
@@ -28,6 +34,8 @@ type ActivityHostEntry = {
   year: number;
   missingFields: MissingField[];
   isReminder: boolean;
+  /** Manual requests only: the address parts to correct, empty for the whole address */
+  addressParts?: AddressPart[];
 };
 
 type ProfileStatus = 'sent' | 'wouldSend' | 'deduped' | 'noRecipient' | 'leftOver' | 'failed';
@@ -322,4 +330,197 @@ export const notifyContributorsMissingInfo = async ({
 
   report.hosts = Array.from(hostReports.values());
   return report;
+};
+
+const ADDRESS_PART_LABELS: Record<AddressPart, string> = {
+  address1: 'street address',
+  address2: 'address line 2',
+  city: 'city',
+  postalCode: 'postal code',
+  zone: 'state or region',
+  country: 'country',
+};
+
+/**
+ * Sends a host admin's request to add or correct a profile's information, with an optional message. Recorded as a
+ * request for the current year, so the daily job does not send a duplicate one and reminds the contributor later if
+ * the information is still missing. The activity is only saved after a confirmed send.
+ */
+export const sendManualContributorInfoRequest = async ({
+  host,
+  profile,
+  fields,
+  addressParts = [],
+  message,
+  requestedBy,
+  now = new Date(),
+}: {
+  host: Collective;
+  profile: Collective;
+  fields: MissingField[];
+  addressParts?: AddressPart[];
+  message?: string;
+  requestedBy: User;
+  now?: Date;
+}): Promise<{ recipients: number; sentTo: User[] }> => {
+  const recipients = await getRecipients(profile);
+  const items = [
+    fields.includes('legalName') && 'Legal name',
+    fields.includes('address') &&
+      (addressParts.length ? `Address: ${addressParts.map(part => ADDRESS_PART_LABELS[part]).join(', ')}` : 'Address'),
+  ].filter(Boolean);
+
+  let sentTo: User[] = [];
+  for (const user of recipients) {
+    try {
+      await sendEmail(user, {
+        collective: { name: profile.name, slug: profile.slug, type: profile.type },
+        recipientName: profile.type === CollectiveType.USER ? profile.name : null,
+        isOrganization: profile.type === CollectiveType.ORGANIZATION,
+        isManual: true,
+        hostName: host.name,
+        items,
+        message: message || null,
+      });
+      sentTo = [...sentTo, user];
+    } catch (error) {
+      logger.error(`contributor-info: failed to email user #${user.id} for profile #${profile.id}: ${error.message}`);
+      reportErrorToSentry(error, { extra: { profileId: profile.id, userId: user.id, hostId: host.id } });
+    }
+  }
+
+  if (sentTo.length) {
+    const location = await profile.getLocation();
+    const entry: ActivityHostEntry = {
+      id: host.id,
+      slug: host.slug,
+      name: host.name,
+      year: now.getUTCFullYear(),
+      missingFields: fields,
+      isReminder: false,
+      addressParts: fields.includes('address') ? addressParts : [],
+    };
+    await Activity.create({
+      type: TEMPLATE,
+      CollectiveId: profile.id,
+      FromCollectiveId: profile.id,
+      HostCollectiveId: host.id,
+      UserId: requestedBy.id,
+      data: {
+        notify: false,
+        isManual: true,
+        isReminder: false,
+        hosts: [entry],
+        fingerprints: getFingerprints(profile, location, fields, entry.addressParts),
+        message: message || null,
+        recipientIds: sentTo.map(u => u.id),
+      },
+    });
+  }
+
+  return { recipients: recipients.length, sentTo };
+};
+
+/** Short hash of a value, to detect later changes without storing personal information in the activity */
+const fingerprint = (value: unknown): string =>
+  createHash('sha256')
+    .update(JSON.stringify(value ?? null))
+    .digest('base64url')
+    .slice(0, 22);
+
+const trimmed = (value: unknown): string | null => (isEmpty(String(value ?? '').trim()) ? null : String(value).trim());
+
+/** Fingerprints of the requested values: `legalName`, `address` (whole address) or `address.<part>` */
+const getFingerprints = (
+  profile: Collective,
+  location: Location | null,
+  fields: MissingField[],
+  addressParts: AddressPart[] = [],
+): Record<string, string> => {
+  const values: Record<string, unknown> = {};
+  if (fields.includes('legalName')) {
+    values.legalName = trimmed(profile.legalName);
+  }
+  if (fields.includes('address') && !addressParts.length) {
+    values.address = { address: location?.address, structured: location?.structured, country: location?.country };
+  }
+  if (fields.includes('address')) {
+    for (const part of addressParts) {
+      values[`address.${part}`] = trimmed(part === 'country' ? location?.country : location?.structured?.[part]);
+    }
+  }
+  return Object.fromEntries(Object.entries(values).map(([key, value]) => [key, fingerprint(value)]));
+};
+
+/** Requests older than this are not reported as pending */
+const PENDING_REQUEST_DAYS = 365;
+
+/**
+ * What the host asked for and the contributor did not provide yet, from all the host's requests of the last
+ * `PENDING_REQUEST_DAYS` days:
+ * - manual requests: the requested values did not change since the request (compared through fingerprints);
+ * - automatic requests: the information is still missing.
+ * Returns null when nothing is pending.
+ */
+export const getPendingContributorInfoRequest = async ({
+  host,
+  profile,
+  now = new Date(),
+}: {
+  host: Collective;
+  profile: Collective;
+  now?: Date;
+}): Promise<{ requestedAt: Date; fields: MissingField[]; addressParts: AddressPart[] } | null> => {
+  const activities = await Activity.findAll({
+    where: {
+      type: TEMPLATE,
+      CollectiveId: profile.id,
+      createdAt: { [Op.gte]: moment(now).subtract(PENDING_REQUEST_DAYS, 'days').toDate(), [Op.lte]: now },
+    },
+    attributes: ['id', 'createdAt', 'data'],
+    order: [['createdAt', 'ASC']],
+  });
+  if (!activities.length) {
+    return null;
+  }
+
+  const location = await profile.getLocation();
+  const isMissing: Record<MissingField, boolean> = {
+    legalName: !isValidLegalName(profile.legalName),
+    address: !locationHasAddress(location),
+  };
+
+  let requestedAt: Date = null;
+  const fields = new Set<MissingField>();
+  const addressParts = new Set<AddressPart>();
+  let wholeAddress = false;
+  for (const activity of activities) {
+    const entries = ((activity.data?.hosts || []) as ActivityHostEntry[]).filter(entry => entry.id === host.id);
+    for (const entry of entries) {
+      let pending: MissingField[];
+      if (activity.data?.fingerprints) {
+        const current = getFingerprints(profile, location, entry.missingFields, entry.addressParts);
+        const unchanged = Object.keys(current).filter(key => current[key] === activity.data.fingerprints[key]);
+        pending = entry.missingFields.filter(field => unchanged.some(key => key.split('.')[0] === field));
+        unchanged
+          .filter(key => key.startsWith('address.'))
+          .forEach(key => addressParts.add(key.split('.')[1] as AddressPart));
+        wholeAddress = wholeAddress || unchanged.includes('address');
+      } else {
+        pending = entry.missingFields.filter(field => isMissing[field]);
+        wholeAddress = wholeAddress || pending.includes('address');
+      }
+
+      if (pending.length) {
+        pending.forEach(field => fields.add(field));
+        requestedAt = activity.createdAt;
+      }
+    }
+  }
+
+  if (!fields.size) {
+    return null;
+  }
+
+  return { requestedAt, fields: Array.from(fields), addressParts: wholeAddress ? [] : Array.from(addressParts) };
 };

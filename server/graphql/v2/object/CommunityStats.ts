@@ -5,6 +5,7 @@ import type { Sequelize } from 'sequelize';
 import { QueryTypes } from 'sequelize';
 
 import ActivityTypes from '../../../constants/activities';
+import { getPendingContributorInfoRequest } from '../../../lib/contributor-info-notify';
 import { Activity, Op, sequelize } from '../../../models';
 import {
   AdminCommunityHostTransactionSummaryRow,
@@ -15,6 +16,7 @@ import { GraphQLCommunityRelationType } from '../enum/CommunityRelationType';
 import { CollectionArgs } from '../interface/Collection';
 
 import { GraphQLAmount } from './Amount';
+import { GraphQLPendingContributorInfoRequest } from './PendingContributorInfoRequest';
 import { GraphQLTimeSeriesAmount } from './TimeSeriesAmount';
 
 const GraphQLCommunityTransactionType = new GraphQLEnumType({
@@ -188,6 +190,17 @@ export const GraphQLCommunityStats = new GraphQLObjectType({
           };
         },
       },
+      pendingContributorInfoRequest: {
+        type: GraphQLPendingContributorInfoRequest,
+        description: 'Legal name and address information requested by the host and not provided yet',
+        async resolve(account, _, req: Express.Request) {
+          const [host, profile] = await Promise.all([
+            req.loaders.Collective.byId.load(account.dataValues.contextualHostCollectiveId),
+            req.loaders.Collective.byId.load(account.id),
+          ]);
+          return host && profile ? getPendingContributorInfoRequest({ host, profile }) : null;
+        },
+      },
       activities: {
         type: GraphQLActivityCollection,
         args: { ...CollectionArgs },
@@ -240,6 +253,7 @@ export const GraphQLCommunityStats = new GraphQLObjectType({
                   ActivityTypes.SUBSCRIPTION_ACTIVATED,
                   ActivityTypes.FISCAL_HOST_NOTE_SET,
                   ActivityTypes.FISCAL_HOST_NOTE_REMOVED,
+                  ActivityTypes.CONTRIBUTOR_INFO_REQUESTED,
                 ],
               },
             ]),

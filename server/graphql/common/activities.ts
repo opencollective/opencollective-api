@@ -96,6 +96,11 @@ export const sanitizeActivityData = async (req: Express.Request, activity): Prom
       toPick.push('note');
       toPick.push('noteType');
     }
+  } else if (activity.type === ActivityTypes.CONTRIBUTOR_INFO_REQUESTED) {
+    // Manual requests from host admins: only their host sees what was requested
+    if (activity.HostCollectiveId && req.remoteUser?.isAdmin(activity.HostCollectiveId)) {
+      toPick.push('isManual', 'message', 'hosts');
+    }
   } else if (activity.type === ActivityTypes.COLLECTIVE_EXPENSE_PAID) {
     toPick.push('isManualPayout');
   } else if (activity.type === ActivityTypes.COLLECTIVE_EXPENSE_UPDATED) {
