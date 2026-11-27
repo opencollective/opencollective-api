@@ -41,6 +41,15 @@ describe('server/lib/normalize-zone', () => {
       expect(normalizeZoneCode('JP', 'tokyo')).to.equal('13');
     });
 
+    it('keeps the zone codes used by the frontend (lib-address 0.7.0) for renamed subdivisions', () => {
+      expect(normalizeZoneCode('CN', '11')).to.equal('11');
+      expect(normalizeZoneCode('CN', 'Beijing Shi')).to.equal('11');
+      for (const code of ['CT', 'OR', 'TG', 'UT']) {
+        expect(normalizeZoneCode('IN', code)).to.equal(code);
+      }
+      expect(normalizeZoneCode('IN', 'Odisha')).to.equal('OR');
+    });
+
     it('trims the zone', () => {
       expect(normalizeZoneCode('US', ' CA ')).to.equal('CA');
       expect(normalizeZoneCode('US', ' California ')).to.equal('CA');

@@ -51,15 +51,20 @@ type Address = {
   zip?: string;
 };
 
-/** Fields that can be marked as required in the `require` string of a country (same order as lib-address) */
+/**
+ * Fields that can be marked as required in the `require` string of a country (same order as lib-address).
+ * `D` (dependent locality) and `X` (sorting code) are left out: we never collect them (see `Address`), so requiring
+ * them would reject every address of the countries that ask for them (e.g. `NZ` requires `D`).
+ */
 const REQUIRABLE_FIELDS = {
   S: 'state',
   Z: 'zip',
-  D: 'dependentLocality',
   C: 'city',
-  X: 'sortingCode',
   A: 'addressLine1',
 } as const;
+
+/** Matches the tokens of a country's `fmt` that `formatAddress` does not handle */
+const UNSUPPORTED_FORMAT_TOKENS = /%[^NOADCSZXn]/g;
 
 /**
  * Throws if the address is missing a required field, has a zip that doesn't match the country's (or sub-region's)
@@ -120,8 +125,11 @@ export const formatAddress = (
   const state = (stateData ? stateData.name : address.state) ?? '';
   const zip = address.zip ?? '';
 
-  // Same replacement chain as lib-address, including its quirks (e.g. separators around empty fields are kept)
+  // Same replacement chain as lib-address, including its quirks (e.g. separators around empty fields are kept).
+  // Tokens added to Google's data after lib-address (e.g. `%T`, `%F` and `%L` for `IN`) are fields we don't collect:
+  // drop them from the format first, rather than printing them.
   const nationalFormat = countryData.fmt
+    .replace(UNSUPPORTED_FORMAT_TOKENS, '')
     .replace(/%N/g, '')
     .replace(/%O/g, '')
     .replace(/%A/g, addressLine)
