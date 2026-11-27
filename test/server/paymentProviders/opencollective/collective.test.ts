@@ -197,6 +197,27 @@ describe('server/paymentProviders/opencollective/collective', () => {
         expect(await fromCollective.getBalance()).to.eq(balance - 2 * amount);
         expect(await toCollective.getBalance()).to.eq(2 * amount);
       });
+
+      it('does not let a refund and a transfer spend the same funds', async () => {
+        // Move the whole balance to `toCollective`, then race a refund of that transfer against a transfer out of it
+        const transfer = await processOrder(
+          collectivePaymentProvider,
+          await createOrder(fromCollective, toCollective, balance),
+        );
+        expect(await toCollective.getBalance()).to.eq(balance);
+
+        const transferOut = await createOrder(toCollective, fromCollective, balance);
+        const results = await Promise.allSettled([
+          collectivePaymentProvider.refundTransaction(transfer, user),
+          processOrder(collectivePaymentProvider, transferOut),
+        ]);
+
+        expect(results.map(r => r.status).sort()).to.deep.equal(['fulfilled', 'rejected']);
+        const rejected = results.find(r => r.status === 'rejected') as PromiseRejectedResult;
+        expect(rejected.reason.message).to.include('Not enough funds available ($0.00 left)');
+        expect(await toCollective.getBalance()).to.eq(0);
+        expect(await fromCollective.getBalance()).to.eq(balance);
+      });
     });
 
     describe('With a Host in a different currency (split HOST_FEE transactions)', () => {

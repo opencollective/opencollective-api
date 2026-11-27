@@ -1,3 +1,5 @@
+import type { Transaction as SequelizeTransaction } from 'sequelize';
+
 import { TransactionKind } from '../../constants/transaction-kind';
 import { TransactionTypes } from '../../constants/transactions';
 import { lockCollectiveBalance } from '../../lib/budget';
@@ -53,6 +55,28 @@ const paymentMethodProvider: BasePaymentProviderService = {
     const fxRate = await getFxRate(order.currency, paymentMethodCurrency);
     const totalAmountInPaymentMethodCurrency = order.totalAmount * fxRate;
 
+    // The balance is returned in the payment method currency, which can differ from the order currency.
+    // `paymentMethodProvider.getBalance` reads the same balance; the payment method belongs to `order.fromCollective`.
+    const checkBalance = async (sqlTransaction?: SequelizeTransaction) => {
+      const balance = await order.fromCollective.getBalance({
+        currency: paymentMethodCurrency,
+        withBlockedFunds: true,
+        transaction: sqlTransaction,
+      });
+      if (balance < totalAmountInPaymentMethodCurrency) {
+        throw new Error(
+          `Not enough funds available (${formatCurrency(
+            balance,
+            paymentMethodCurrency,
+          )} left) to execute this order (${formatCurrency(order.totalAmount, order.currency)})`,
+        );
+      }
+    };
+
+    // Unlocked pre-check: fails fast without taking the lock, and loads the FX rates the balance needs into the cache
+    // so the locked check below normally doesn't wait on an FX lookup while holding the lock.
+    await checkBalance();
+
     const hostFeeSharePercent = await getHostFeeSharePercent(order);
     const isSharedRevenue = !!hostFeeSharePercent;
 
@@ -100,24 +124,7 @@ const paymentMethodProvider: BasePaymentProviderService = {
     // of the SQL transaction, so concurrent debits can't all pass the check against the same funds.
     const transaction = await sequelize.transaction(async sqlTransaction => {
       await lockCollectiveBalance(order.fromCollective.id, sqlTransaction);
-
-      // Same as `paymentMethodProvider.getBalance`, but read within the locked SQL transaction. The payment method
-      // belongs to `order.fromCollective` (checked above). The balance is returned in the payment method currency,
-      // which can differ from the order currency.
-      const balance = await order.fromCollective.getBalance({
-        currency: paymentMethodCurrency,
-        withBlockedFunds: true,
-        transaction: sqlTransaction,
-      });
-      if (balance < totalAmountInPaymentMethodCurrency) {
-        throw new Error(
-          `Not enough funds available (${formatCurrency(
-            balance,
-            paymentMethodCurrency,
-          )} left) to execute this order (${formatCurrency(order.totalAmount, order.currency)})`,
-        );
-      }
-
+      await checkBalance(sqlTransaction);
       return models.Transaction.createFromContributionPayload(transactionPayload, { sqlTransaction });
     });
 
@@ -148,9 +155,21 @@ const paymentMethodProvider: BasePaymentProviderService = {
       throw new Error('Cannot process refunds for collectives with different hosts');
     }
 
-    if (!opts?.ignoreBalanceCheck) {
-      const balance = await collective.getBalanceWithBlockedFunds({ currency: transaction.hostCurrency });
-      const refundableAmountFromCollective = await getRefundableAmountFromCollectiveInHostCurrency(transaction);
+    // Use 0 for processor fees because there's no fees for collective to collective
+    // transactions within the same host.
+    const refund = (sqlTransaction?: SequelizeTransaction) =>
+      createRefundTransaction(transaction, 0, null, user, null, null, refundKind, { sqlTransaction });
+
+    if (opts?.ignoreBalanceCheck) {
+      return await refund();
+    }
+
+    const refundableAmountFromCollective = await getRefundableAmountFromCollectiveInHostCurrency(transaction);
+    const checkBalance = async (sqlTransaction?: SequelizeTransaction) => {
+      const balance = await collective.getBalanceWithBlockedFunds({
+        currency: transaction.hostCurrency,
+        transaction: sqlTransaction,
+      });
       if (balance < refundableAmountFromCollective) {
         throw new Error(
           `Not enough funds available (${formatCurrency(
@@ -159,11 +178,15 @@ const paymentMethodProvider: BasePaymentProviderService = {
           )} left) to process this refund (${formatCurrency(refundableAmountFromCollective, transaction.hostCurrency)})`,
         );
       }
-    }
+    };
 
-    // Use 0 for processor fees because there's no fees for collective to collective
-    // transactions within the same host.
-    return await createRefundTransaction(transaction, 0, null, user, null, null, refundKind);
+    // Same pattern as `processOrder`: unlocked pre-check, then check and debit the refunded account under its lock
+    await checkBalance();
+    return await sequelize.transaction(async sqlTransaction => {
+      await lockCollectiveBalance(collective.id, sqlTransaction);
+      await checkBalance(sqlTransaction);
+      return refund(sqlTransaction);
+    });
   },
 };
 

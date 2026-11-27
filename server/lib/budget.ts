@@ -296,7 +296,8 @@ export async function getBalances(
   const fastResults =
     useMaterializedView === true && !includeChildren
       ? endDate
-        ? FAST_BALANCE_SUPPORTED_VERSIONS.includes(version) && !withBlockedFunds
+        ? // The historical path reads a materialized view, which can't see uncommitted entries of `transaction`
+          FAST_BALANCE_SUPPORTED_VERSIONS.includes(version) && !withBlockedFunds && !transaction
           ? await getHistoricalCollectiveBalances(collectiveIds, endDate)
           : {}
         : version === DEFAULT_BUDGET_VERSION
@@ -1408,23 +1409,24 @@ export async function getCurrentCollectiveBalances(
   collectiveIds: number[] | readonly number[],
   { loaders = null, withBlockedFunds = false, transaction = undefined }: GetCurrentCollectiveBalancesOptions = {},
 ): Promise<TotalsByCollective> {
-  const fastResults = loaders
-    ? await Promise.all(
-        collectiveIds.map(collectiveId => loaders.Collective.currentCollectiveBalance.load(collectiveId)),
-      ).then(results => results.filter(el => !!el))
-    : await sequelize.query<CurrentBalanceRow>(
-        `SELECT ccb.*
+  const fastResults =
+    loaders && !transaction
+      ? await Promise.all(
+          collectiveIds.map(collectiveId => loaders.Collective.currentCollectiveBalance.load(collectiveId)),
+        ).then(results => results.filter(el => !!el))
+      : await sequelize.query<CurrentBalanceRow>(
+          `SELECT ccb.*
          FROM "CurrentCollectiveBalance" ccb
          INNER JOIN "Collectives" c ON ccb."CollectiveId" = c."id"
          AND COALESCE(c."settings"->'budget'->>'version', 'v2') = 'v2'
          WHERE ccb."CollectiveId" IN (:collectiveIds)`,
-        {
-          replacements: { collectiveIds },
-          type: QueryTypes.SELECT,
-          raw: true,
-          transaction,
-        },
-      );
+          {
+            replacements: { collectiveIds },
+            type: QueryTypes.SELECT,
+            raw: true,
+            transaction,
+          },
+        );
 
   const totals: TotalsByCollective = {};
 
@@ -1492,17 +1494,28 @@ export async function getCurrentCollectiveTransactionStats(
  * Acquires a transaction-scoped lock on the balance of `collectiveId`, released when `transaction` commits or
  * rolls back. Use it to make a "check balance, then debit" sequence atomic against concurrent debits: take
  * the lock first, then read the balance with `{ transaction }` and write the ledger entries in the same
- * transaction. Waits at most `timeoutMs` for the lock, then throws.
+ * transaction. Waits at most `timeoutMs` for the lock, then throws. The transaction's previous `lock_timeout`
+ * is restored once the lock is acquired.
+ *
+ * Keep the critical section to SQL on `transaction`: anything slow done while holding the lock (HTTP calls, queries
+ * on other connections) makes every other operation on this account wait, each holding a pooled connection.
  */
 export async function lockCollectiveBalance(
   collectiveId: number,
   transaction: SequelizeTransaction,
-  { timeoutMs = 15 * 1000 }: { timeoutMs?: number } = {},
+  { timeoutMs = 3 * 1000 }: { timeoutMs?: number } = {},
 ): Promise<void> {
   assert(collectiveId, 'Cannot lock the balance for account');
   assert(transaction, 'lockCollectiveBalance must be called within a SQL transaction');
 
-  await sequelize.query(`SET LOCAL lock_timeout = ${Math.max(1, Math.round(timeoutMs))}`, { transaction });
+  const [{ previousLockTimeout }] = await sequelize.query<{ previousLockTimeout: string }>(
+    `SELECT current_setting('lock_timeout') AS "previousLockTimeout"`,
+    { type: QueryTypes.SELECT, transaction },
+  );
+  await sequelize.query(`SELECT set_config('lock_timeout', :timeout, true)`, {
+    replacements: { timeout: `${Math.max(1, Math.round(timeoutMs))}ms` },
+    transaction,
+  });
   try {
     await sequelize.query('SELECT pg_advisory_xact_lock(:namespace, :collectiveId)', {
       replacements: { namespace: POSTGRES_LOCK_NAMESPACES.COLLECTIVE_BALANCE, collectiveId },
@@ -1515,5 +1528,8 @@ export async function lockCollectiveBalance(
     }
     throw error;
   }
-  await sequelize.query('SET LOCAL lock_timeout = 0', { transaction });
+  await sequelize.query(`SELECT set_config('lock_timeout', :previousLockTimeout, true)`, {
+    replacements: { previousLockTimeout },
+    transaction,
+  });
 }

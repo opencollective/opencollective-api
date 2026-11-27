@@ -1,4 +1,5 @@
 import { expect } from 'chai';
+import { QueryTypes } from 'sequelize';
 import { createSandbox } from 'sinon';
 
 import { CollectiveType } from '../../../server/constants/collectives';
@@ -22,6 +23,7 @@ import {
   getTotalAmountSpentTimeSeries,
   getTotalMoneyManagedAmount,
   getYearlyBudgets,
+  lockCollectiveBalance,
   sumCollectivesTransactions,
 } from '../../../server/lib/budget';
 import * as libcurrency from '../../../server/lib/currency';
@@ -38,6 +40,51 @@ import { makeRequest, resetTestDB } from '../../utils';
 
 describe('server/lib/budget', () => {
   before(resetTestDB);
+
+  describe('lockCollectiveBalance', () => {
+    const getLockTimeout = async transaction => {
+      const [{ lockTimeout }] = await sequelize.query<{ lockTimeout: string }>(
+        `SELECT current_setting('lock_timeout') AS "lockTimeout"`,
+        { type: QueryTypes.SELECT, transaction },
+      );
+      return lockTimeout;
+    };
+
+    it('throws a retryable error when the lock is held for longer than the timeout', async () => {
+      const collective = await fakeCollective();
+      let releaseHolder;
+      const holderReleased = new Promise(resolve => (releaseHolder = resolve));
+      let holderLocked;
+      const holderHasLock = new Promise(resolve => (holderLocked = resolve));
+      const holder = sequelize.transaction(async transaction => {
+        await lockCollectiveBalance(collective.id, transaction);
+        holderLocked();
+        await holderReleased;
+      });
+
+      try {
+        await holderHasLock;
+        await expect(
+          sequelize.transaction(transaction => lockCollectiveBalance(collective.id, transaction, { timeoutMs: 50 })),
+        ).to.be.rejectedWith('Another operation on this account balance is in progress, please try again in a moment.');
+      } finally {
+        releaseHolder();
+        await holder;
+      }
+
+      // Once released, the lock can be taken again
+      await sequelize.transaction(transaction => lockCollectiveBalance(collective.id, transaction, { timeoutMs: 50 }));
+    });
+
+    it("restores the transaction's previous lock_timeout", async () => {
+      const collective = await fakeCollective();
+      await sequelize.transaction(async transaction => {
+        await sequelize.query(`SET LOCAL lock_timeout = '42s'`, { transaction });
+        await lockCollectiveBalance(collective.id, transaction, { timeoutMs: 50 });
+        expect(await getLockTimeout(transaction)).to.eq('42s');
+      });
+    });
+  });
 
   describe('getYearlyBudget', () => {
     it('returns 0 for collective without transactions', async () => {
