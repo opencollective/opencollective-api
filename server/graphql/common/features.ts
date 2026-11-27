@@ -5,7 +5,11 @@ import { get } from 'lodash';
 import { CollectiveType } from '../../constants/collectives';
 import FEATURE from '../../constants/feature';
 import FEATURE_STATUS from '../../constants/feature-status';
-import { getFeatureAccess, isFeatureBlockedForAccount } from '../../lib/allowed-features';
+import {
+  getFeatureAccess,
+  getFeatureAccessWithoutPricing,
+  isFeatureBlockedForAccount,
+} from '../../lib/allowed-features';
 import { isPastEvent } from '../../lib/collectivelib';
 import { getSupportedExpenseTypes } from '../../lib/expenses';
 import { Collective } from '../../models';
@@ -168,6 +172,79 @@ const checkCanReceiveExpenses = async (collective, req: Express.Request) => {
 };
 
 /**
+ * The probes that the status of a feature may read, as far as the account alone can tell. A probe that is read
+ * without being listed here costs one more statement.
+ *
+ * `RECEIVE_GRANTS` is left out on purpose. Most accounts do not accept grants, which only their host tells, and the
+ * status then never reads the probe. Without an index on the type of expenses, that probe reads every expense of an
+ * account that has no grant: all the requests would pay for it.
+ */
+const getProbesOfFeature = (feature: FEATURE, collective: Collective): FeatureProbe[] => {
+  switch (feature) {
+    case FEATURE.RECEIVE_FINANCIAL_CONTRIBUTIONS:
+      if (!collective.HostCollectiveId || !collective.approvedAt || !collective.isActive) {
+        return [];
+      } else if (collective.settings?.disableCustomContributions) {
+        return ['HAS_TIERS', 'HAS_RECEIVED_CONTRIBUTIONS'];
+      } else {
+        return ['HAS_RECEIVED_CONTRIBUTIONS'];
+      }
+    case FEATURE.RECEIVE_EXPENSES:
+      return ['HAS_RECEIVED_EXPENSES'];
+    case FEATURE.UPDATES:
+      return ['HAS_PUBLISHED_UPDATES'];
+    case FEATURE.CONVERSATIONS:
+      return ['HAS_CONVERSATIONS'];
+    case FEATURE.RECURRING_CONTRIBUTIONS:
+      return ['HAS_ACTIVE_RECURRING_CONTRIBUTIONS'];
+    case FEATURE.TRANSFERWISE:
+      return ['HAS_WISE_ACCOUNT'];
+    case FEATURE.PAYPAL_PAYOUTS:
+      return ['HAS_PAYPAL_ACCOUNT'];
+    case FEATURE.EVENTS:
+      return ['HAS_EVENTS'];
+    case FEATURE.PROJECTS:
+      return ['HAS_PROJECTS'];
+    case FEATURE.CONNECTED_ACCOUNTS:
+      return ['HAS_CONNECTED_COLLECTIVES'];
+    case FEATURE.TRANSACTIONS:
+      return ['HAS_TRANSACTIONS'];
+    case FEATURE.USE_PAYMENT_METHODS:
+      return ['HAS_USABLE_PAYMENT_METHODS'];
+    case FEATURE.VIRTUAL_CARDS:
+      if (collective.hasMoneyManagement) {
+        return get(collective.settings, 'features.virtualCards') ? ['HAS_HOSTED_VIRTUAL_CARDS'] : [];
+      } else {
+        return collective.HostCollectiveId ? ['HAS_VIRTUAL_CARDS'] : [];
+      }
+    default:
+      return [];
+  }
+};
+
+/**
+ * Asks the loader for the probes of a feature status before the resolver awaits anything.
+ *
+ * GraphQL calls the resolvers of all the selected features, for all the accounts of a list, in the same tick, and a
+ * loader batches the keys it receives in the same tick. Loaded from here, the probes of a request make one statement.
+ * Loaded after the host or its plan, they would be split in as many statements as there are round trips before them.
+ *
+ * The price: when the plan of the host turns out not to include the feature, its probe ran for nothing.
+ */
+const primeProbes = (feature: FEATURE, collective: Collective, req): void => {
+  const loader = req?.loaders?.Collective?.featureProbes;
+  const access = getFeatureAccessWithoutPricing(collective, feature);
+  if (!loader || (access && access.access !== 'AVAILABLE')) {
+    return;
+  }
+
+  for (const probe of getProbesOfFeature(feature, collective)) {
+    // The status reads the same cached promise, and reports its error. This one must not be left unhandled.
+    loader.load({ accountId: collective.id, probe }).catch(() => {});
+  }
+};
+
+/**
  * Returns a resolved that will give the `FEATURE_STATUS` for the given collective/feature.
  */
 export const getFeatureStatusResolver =
@@ -183,6 +260,7 @@ export const getFeatureStatusResolver =
       return clientId ? FEATURE_STATUS.AVAILABLE : FEATURE_STATUS.DISABLED;
     }
 
+    primeProbes(feature, collective, req); // Must stay before the first `await`
     const { access } = await getFeatureAccess(collective, feature, { loaders: req?.loaders });
     if (access === 'UNSUPPORTED') {
       return FEATURE_STATUS.UNSUPPORTED;

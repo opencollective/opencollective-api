@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import DataLoader from 'dataloader';
-import gql from 'fake-tag';
+import { pick } from 'lodash';
 import { QueryTypes } from 'sequelize';
 import { createSandbox } from 'sinon';
 
@@ -22,7 +22,7 @@ import {
   generateFeatureProbesLoader,
   queryFeatureProbes,
 } from '../../../../server/graphql/loaders/feature-probes';
-import { type Collective as CollectiveModel, sequelize } from '../../../../server/models';
+import models, { type Collective as CollectiveModel, sequelize } from '../../../../server/models';
 import {
   fakeActiveHost,
   fakeCollective,
@@ -33,6 +33,7 @@ import {
   fakeMember,
   fakeOrder,
   fakePaymentMethod,
+  fakePlatformSubscription,
   fakeProject,
   fakeTier,
   fakeTransaction,
@@ -74,6 +75,8 @@ const LEGACY_QUERIES: Record<FeatureProbe, string> = {
 };
 
 const ALL_PROBES = Object.keys(FEATURE_PROBES) as FeatureProbe[];
+
+const PROBE_STATEMENT_REGEX = /^select "a"."id", /;
 
 const queryLegacyProbe = async ({ accountId, probe }: FeatureProbeKey): Promise<boolean> => {
   const row = await sequelize.query(`SELECT EXISTS (${LEGACY_QUERIES[probe]}) AS result`, {
@@ -196,7 +199,7 @@ describe('server/graphql/loaders/feature-probes', () => {
     spy
       .getCalls()
       .map(call => String(call.args[0]))
-      .filter(statement => /^select "a"."id", /.test(statement));
+      .filter(statement => PROBE_STATEMENT_REGEX.test(statement));
 
   describe('queryFeatureProbes', () => {
     it('finds the data of each probe', async () => {
@@ -357,8 +360,9 @@ describe('server/graphql/loaders/feature-probes', () => {
       expect(await resolve(account, null, { ...req, loaders: generateLoaders({}) })).to.equal('ACTIVE');
     });
 
-    it('take a single probe statement for the features that need nothing but the account', async () => {
-      const query = gql`
+    describe('of a list of accounts, through GraphQL', () => {
+      // Every field of `CollectiveFeatures`
+      const query = `
         query HostedAccountsFeatures($slug: String!) {
           host(slug: $slug) {
             id
@@ -369,13 +373,7 @@ describe('server/graphql/loaders/feature-probes', () => {
                 legacyId
                 features {
                   id
-                  CONNECTED_ACCOUNTS
-                  CONVERSATIONS
-                  EVENTS
-                  PROJECTS
-                  RECURRING_CONTRIBUTIONS
-                  TRANSACTIONS
-                  UPDATES
+                  ${Object.keys(FEATURE).join('\n')}
                 }
               }
             }
@@ -383,18 +381,116 @@ describe('server/graphql/loaders/feature-probes', () => {
         }
       `;
 
-      const querySpy = sandbox.spy(sequelize, 'query');
-      const result = await graphqlQueryV2(query, { slug: host.slug }, hostAdmin);
-      result.errors && console.error(result.errors);
-      expect(result.errors).to.not.exist;
-      expect(result.data.host.hostedAccounts.totalCount).to.be.at.least(4);
-      expect(getProbeStatements(querySpy)).to.have.length(1);
+      const accountQuery = `
+        query AccountFeatures($slug: String!) {
+          account(slug: $slug) {
+            id
+            features {
+              id
+              ${Object.keys(FEATURE).join('\n')}
+            }
+          }
+        }
+      `;
 
-      const featuresById = Object.fromEntries(
-        result.data.host.hostedAccounts.nodes.map(node => [node.legacyId, node.features]),
-      );
-      expect(featuresById[accountWithData.id]).to.include({ TRANSACTIONS: 'ACTIVE', UPDATES: 'ACTIVE' });
-      expect(featuresById[accountWithoutData.id]).to.include({ TRANSACTIONS: 'AVAILABLE', UPDATES: 'AVAILABLE' });
+      let hostWithSubscription, hostWithSubscriptionAdmin;
+
+      before(async () => {
+        // A host on the new pricing: its paying features wait for its plan, which does not include all of them
+        hostWithSubscriptionAdmin = await fakeUser();
+        hostWithSubscription = await fakeActiveHost({
+          admin: hostWithSubscriptionAdmin,
+          settings: { features: { transferwise: true, virtualCards: true } } as CollectiveModel['settings'],
+        });
+        await fakePlatformSubscription({
+          CollectiveId: hostWithSubscription.id,
+          plan: { features: { TRANSFERWISE: true, PAYPAL_PAYOUTS: false } },
+        });
+        const account = await fakeCollective({ HostCollectiveId: hostWithSubscription.id });
+        await fakeUpdate({ CollectiveId: account.id, publishedAt: new Date() });
+        await fakeCollective({
+          HostCollectiveId: hostWithSubscription.id,
+          settings: { disableCustomContributions: true },
+        });
+        await fakeEvent({ ParentCollectiveId: account.id });
+      });
+
+      it('take a single probe statement, whatever the features wait for', async () => {
+        const querySpy = sandbox.spy(sequelize, 'query');
+        const result = await graphqlQueryV2(query, { slug: hostWithSubscription.slug }, hostWithSubscriptionAdmin);
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.host.hostedAccounts.totalCount).to.be.at.least(2);
+        expect(getProbeStatements(querySpy)).to.have.length(1);
+      });
+
+      it('take a second probe statement for the accounts that accept grants', async () => {
+        const querySpy = sandbox.spy(sequelize, 'query');
+        const result = await graphqlQueryV2(query, { slug: host.slug }, hostAdmin);
+        expect(result.errors).to.not.exist;
+        expect(result.data.host.hostedAccounts.totalCount).to.be.at.least(4);
+
+        const probeStatements = getProbeStatements(querySpy);
+        expect(probeStatements).to.have.length(2);
+        expect(probeStatements[1]).to.match(
+          /^select "a"."id", exists \(select 1 as "one" from "Expenses" [^,]+ as "HAS_RECEIVED_GRANTS" from/,
+        );
+      });
+
+      it('take a single probe statement for a host whose features wait for its plan', async () => {
+        const querySpy = sandbox.spy(sequelize, 'query');
+        const result = await graphqlQueryV2(
+          accountQuery,
+          { slug: hostWithSubscription.slug },
+          hostWithSubscriptionAdmin,
+        );
+        expect(result.errors).to.not.exist;
+        expect(result.data.account.features).to.include({ TRANSFERWISE: 'AVAILABLE', PAYPAL_PAYOUTS: 'DISABLED' });
+        expect(getProbeStatements(querySpy)).to.have.length(1);
+      });
+
+      it('are the ones of the legacy queries', async () => {
+        const result = await graphqlQueryV2(query, { slug: host.slug }, hostAdmin);
+        expect(result.errors).to.not.exist;
+        for (const node of result.data.host.hostedAccounts.nodes) {
+          const account = await models.Collective.findByPk(node.legacyId);
+          const loaders = generateLoaders({ remoteUser: hostAdmin });
+          loaders.Collective.featureProbes = generateLegacyProbesLoader();
+          const expected = await resolveAllFeatures(account, { remoteUser: hostAdmin, loaders });
+          expect(pick(node.features, ALL_FEATURES)).to.deep.equal(expected);
+        }
+      });
+
+      it('fail without unhandled rejection when the probe statement fails', async () => {
+        const unhandledRejections = [];
+        const onUnhandledRejection = reason => unhandledRejections.push(reason);
+        process.on('unhandledRejection', onUnhandledRejection);
+        try {
+          const originalQuery = sequelize.query.bind(sequelize);
+          sandbox.stub(sequelize, 'query').callsFake((statement, ...args) => {
+            return PROBE_STATEMENT_REGEX.test(String(statement))
+              ? Promise.reject(new Error('canceling statement due to statement timeout'))
+              : originalQuery(statement, ...args);
+          });
+
+          const result = await graphqlQueryV2(
+            accountQuery,
+            { slug: hostWithSubscription.slug },
+            hostWithSubscriptionAdmin,
+          );
+          await new Promise(resolve => setTimeout(resolve, 20)); // Unhandled rejections are reported after the current tick
+
+          const failedFields = result.errors.map(error => error.path.at(-1));
+          expect(failedFields).to.include.members(['TRANSFERWISE', 'TRANSACTIONS', 'UPDATES']);
+
+          // Its probe was loaded before the plan told that the feature is disabled. It failed too, but nobody read it.
+          expect(failedFields).to.not.include('PAYPAL_PAYOUTS');
+          expect(result.data.account.features).to.include({ PAYPAL_PAYOUTS: 'DISABLED', TRANSFERWISE: null });
+          expect(unhandledRejections).to.be.empty;
+        } finally {
+          process.off('unhandledRejection', onUnhandledRejection);
+        }
+      });
     });
   });
 });
