@@ -204,7 +204,16 @@ const processPaypalOrder = async (order, paypalOrderId): Promise<Transaction | u
 
   // Check payment details
   const paypalOrderDetails = await paypalRequestV2(paypalOrderUrl, hostCollective, 'GET');
-  const purchaseUnit = paypalOrderDetails['purchase_units'][0];
+  // We only create single-unit orders, and the checks below only inspect the first unit while `/authorize` covers all of them
+  const purchaseUnits = paypalOrderDetails['purchase_units'] as Array<{
+    amount: { value: string; currency_code: string };
+    payee?: { merchant_id?: string; email_address?: string };
+  }>;
+  if (purchaseUnits?.length !== 1) {
+    throw new Error('This PayPal order must contain exactly one purchase unit');
+  }
+
+  const purchaseUnit = purchaseUnits[0];
   const paypalAmountInCents = floatAmountToCents(parseFloat(purchaseUnit.amount['value']));
   const paypalCurrency = purchaseUnit.amount['currency_code'];
   if (paypalAmountInCents !== order.totalAmount || paypalCurrency !== order.currency) {
