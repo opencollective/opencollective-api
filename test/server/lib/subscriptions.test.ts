@@ -364,5 +364,37 @@ describe('server/lib/subscriptions', () => {
         expect(cancelPaypalSubscriptionStub.calledOnce).to.be.true;
       });
     });
+
+    describe('when changing to a payment method managed externally', () => {
+      it('refuses a PayPal subscription payment method and leaves the subscription untouched', async () => {
+        const cancelPaypalSubscriptionStub = sandbox.stub(PaypalSubscriptionAPI, 'cancelPaypalSubscription').resolves();
+        const stripePm = await fakePaymentMethod({
+          service: PAYMENT_METHOD_SERVICE.STRIPE,
+          type: PAYMENT_METHOD_TYPE.CREDITCARD,
+        });
+        const order = await fakeOrder(
+          { PaymentMethodId: stripePm.id, interval: INTERVALS.MONTH },
+          { withSubscription: true },
+        );
+        const user = order.createdByUser;
+        // The user's PayPal subscription payment method, coming from another order
+        const paypalPm = await fakePaymentMethod({
+          CollectiveId: user.CollectiveId,
+          service: PAYMENT_METHOD_SERVICE.PAYPAL,
+          type: PAYMENT_METHOD_TYPE.SUBSCRIPTION,
+          token: 'I-OTHER-ORDER-SUBSCRIPTION',
+        });
+
+        await expect(updatePaymentMethodForSubscription(user, order, paypalPm)).to.be.rejectedWith(
+          'This payment method cannot be used to update a recurring contribution',
+        );
+
+        await order.reload();
+        await order.Subscription.reload();
+        expect(order.PaymentMethodId).to.eq(stripePm.id);
+        expect(order.Subscription.isActive).to.be.true;
+        expect(cancelPaypalSubscriptionStub.called).to.be.false;
+      });
+    });
   });
 });

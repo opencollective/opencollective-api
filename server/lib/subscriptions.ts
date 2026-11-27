@@ -118,6 +118,12 @@ export const updatePaymentMethodForSubscription = async (
     }
   }
 
+  // Externally managed payment methods (e.g. PayPal subscriptions) are bound to the order they were approved for:
+  // they must go through their own flow (see `updateSubscriptionWithPaypal`).
+  if (getIsSubscriptionManagedExternally(newPaymentMethod)) {
+    throw new BadRequest('This payment method cannot be used to update a recurring contribution');
+  }
+
   // Ensure that this payment method can be used for this order
   await newPaymentMethod.canBeUsedForOrder(order, user);
 
@@ -127,29 +133,25 @@ export const updatePaymentMethodForSubscription = async (
 
   // Subscription changes
   const newSubscriptionData = { isActive: true, deactivatedAt: null };
-  const isNewPaymentMethodManagedExternally = getIsSubscriptionManagedExternally(newPaymentMethod);
+  // Reset flags for managing the subscription externally
+  newSubscriptionData['isManagedExternally'] = false;
+  newSubscriptionData['paypalSubscriptionId'] = null;
 
-  if (!isNewPaymentMethodManagedExternally) {
-    // Reset flags for managing the subscription externally
-    newSubscriptionData['isManagedExternally'] = false;
-    newSubscriptionData['paypalSubscriptionId'] = null;
+  // Update the next charge dates
+  const previousNextChargeDate = order.Subscription.nextChargeDate;
+  const previousNextPeriodStart = order.Subscription.nextPeriodStart;
+  const interval = order.Subscription.interval;
+  const changedFromExternallyManagedToInternallyManaged = order.Subscription.isManagedExternally;
+  const [nextChargeDate, nextPeriodStart] = getNextChargeDateForUpdateContribution(
+    previousNextChargeDate,
+    previousNextPeriodStart,
+    interval,
+    interval,
+    !changedFromExternallyManagedToInternallyManaged,
+  );
 
-    // Update the next charge dates
-    const previousNextChargeDate = order.Subscription.nextChargeDate;
-    const previousNextPeriodStart = order.Subscription.nextPeriodStart;
-    const interval = order.Subscription.interval;
-    const changedFromExternallyManagedToInternallyManaged = order.Subscription.isManagedExternally;
-    const [nextChargeDate, nextPeriodStart] = getNextChargeDateForUpdateContribution(
-      previousNextChargeDate,
-      previousNextPeriodStart,
-      interval,
-      interval,
-      !changedFromExternallyManagedToInternallyManaged,
-    );
-
-    newSubscriptionData['nextChargeDate'] = nextChargeDate.toDate();
-    newSubscriptionData['nextPeriodStart'] = nextPeriodStart.toDate();
-  }
+  newSubscriptionData['nextChargeDate'] = nextChargeDate.toDate();
+  newSubscriptionData['nextPeriodStart'] = nextPeriodStart.toDate();
 
   // Need to cancel previous subscription
   if (order.Subscription.isActive) {
