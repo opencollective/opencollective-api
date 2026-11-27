@@ -2818,6 +2818,20 @@ class Collective extends ModelWithPublicId<
       await this.unfreeze(message, message, remoteUser);
     }
 
+    // When leaving a host that has not approved the collective yet, close the pending application
+    if (newHostCollectiveId === null && this.HostCollectiveId && !this.approvedAt) {
+      await HostApplication.update(
+        { status: HostApplicationStatus.EXPIRED },
+        {
+          where: {
+            CollectiveId: this.id,
+            HostCollectiveId: this.HostCollectiveId,
+            status: HostApplicationStatus.PENDING,
+          },
+        },
+      );
+    }
+
     // Reset current host
     await this.update({
       HostCollectiveId: null,
@@ -3409,6 +3423,14 @@ class Collective extends ModelWithPublicId<
     }
 
     return Member.findOne({ where: { MemberCollectiveId: this.id, role: 'HOST' }, transaction }).then(r => Boolean(r));
+  };
+
+  /**
+   * Returns true if this account has been approved by a host (or is its own host). An account that
+   * only has a pending host application does not have an active host.
+   */
+  hasActiveHost = function (): boolean {
+    return Boolean(this.HostCollectiveId && this.approvedAt);
   };
 
   isHostOf = function (CollectiveId) {
