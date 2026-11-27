@@ -132,11 +132,14 @@ export const getSpendingLimitIntervalDates = (spendingLimitInterval: VirtualCard
         renewedOn: now.startOf('day').toISOString(),
         renewsOn: now.add(1, 'day').startOf('day').toISOString(),
       };
-    case VirtualCardLimitIntervals.WEEKLY:
+    case VirtualCardLimitIntervals.WEEKLY: {
+      // `.day(0)` is Sunday whatever the locale (`startOf('isoWeek')` would be Monday)
+      const startOfWeek = now.startOf('day').day(0);
       return {
-        renewedOn: now.startOf('isoWeek').toISOString(),
-        renewsOn: now.add(1, 'week').startOf('isoWeek').toISOString(),
+        renewedOn: startOfWeek.toISOString(),
+        renewsOn: startOfWeek.clone().add(1, 'week').toISOString(),
       };
+    }
     case VirtualCardLimitIntervals.MONTHLY:
       return {
         renewedOn: now.startOf('month').toISOString(),
