@@ -7813,6 +7813,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
           });
 
           const expense = await fakeApprovedPaypalExpense();
+          await expense.update({ data: { ...expense.data, existingKey: 'kept' } });
           const mutationParams = { expenseId: expense.id, action: 'SCHEDULE_FOR_PAYMENT' };
           const result = await graphqlQueryV2(processExpenseMutation, mutationParams, hostWith2FAPolicyAdmin, null, {
             [TwoFactorAuthenticationHeader]: `totp ${generateSync({ secret })}`,
@@ -7820,6 +7821,11 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
           result.errors && console.error(result.errors);
           expect(result.errors).to.not.exist;
           expect(result.data.processExpense.status).to.eq('SCHEDULED_FOR_PAYMENT');
+
+          // Who scheduled the payout is recorded with the status, for the PayPal payout cron, without losing other data
+          await expense.reload();
+          expect(expense.data.scheduledForPaymentByUserId).to.eq(hostWith2FAPolicyAdmin.id);
+          expect(expense.data.existingKey).to.eq('kept');
         });
       });
 

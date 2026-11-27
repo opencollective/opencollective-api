@@ -1681,7 +1681,10 @@ const updateExpenseStatusWithLock = async (
     expectedStatus = expense.status,
     // Set when called from `withExpenseLockedForProviderCall`, which holds the processing soft lock itself
     ownsSoftLock = false,
-  }: { expectedStatus?: Expense['status']; ownsSoftLock?: boolean } = {},
+    // Keys to add to `data`, merged into the row read under the lock rather than into `expense.data`, which may be
+    // stale: another request can change `data` while a payment provider is called
+    mergeData = undefined,
+  }: { expectedStatus?: Expense['status']; ownsSoftLock?: boolean; mergeData?: Record<string, unknown> } = {},
 ): Promise<{ expense: Expense; updated: boolean }> => {
   return sequelize.transaction(async transaction => {
     const lockedExpense = await models.Expense.findByPk(expense.id, { lock: true, transaction });
@@ -1695,7 +1698,8 @@ const updateExpenseStatusWithLock = async (
     }
 
     assertExpenseStatusUnchanged(lockedExpense, expectedStatus, { ownsSoftLock });
-    return { expense: await expense.update(values, { transaction }), updated: true };
+    const valuesToWrite = mergeData ? { ...values, data: { ...lockedExpense.data, ...mergeData } } : values;
+    return { expense: await expense.update(valuesToWrite, { transaction }), updated: true };
   });
 };
 
@@ -2095,10 +2099,13 @@ export const scheduleExpenseForPayment = async (
           status: 'SCHEDULED_FOR_PAYMENT',
           lastEditedById: req.remoteUser.id,
           onHold: false,
-          // Recorded in the same write as the status: the PayPal payout cron checks that this admin can still pay
-          data: { ...expense.data, scheduledForPaymentByUserId: req.remoteUser.id },
         },
-        { expectedStatus: statusBeforeScheduling, ownsSoftLock: true },
+        {
+          expectedStatus: statusBeforeScheduling,
+          ownsSoftLock: true,
+          // Recorded in the same write as the status: the PayPal payout cron checks that this admin can still pay
+          mergeData: { scheduledForPaymentByUserId: req.remoteUser.id },
+        },
       );
     } catch (error) {
       // Nothing was scheduled: the amount does not count towards the rolling limit
