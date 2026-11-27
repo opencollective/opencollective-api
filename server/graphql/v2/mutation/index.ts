@@ -6,6 +6,7 @@ import agreementMutations from './AgreementMutations';
 import applicationMutations from './ApplicationMutations';
 import commentMutations from './CommentMutations';
 import connectedAccountMutations from './ConnectedAccountMutations';
+import contributorInfoMutations from './ContributorInfoMutations';
 import conversationMutations from './ConversationMutations';
 import createCollectiveMutation from './CreateCollectiveMutation';
 import createEventMutation from './CreateEventMutation';
@@ -92,6 +93,7 @@ const mutation = {
   ...socialLinkMutations,
   ...tagMutations,
   ...agreementMutations,
+  ...contributorInfoMutations,
   ...fiscalHostNoteMutations,
   ...vendorMutations,
   ...platformSubscriptionMutations,

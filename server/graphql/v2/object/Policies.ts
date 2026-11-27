@@ -1,7 +1,7 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { get, isNil, mapValues } from 'lodash';
 
-import POLICIES, { Policies } from '../../../constants/policies';
+import POLICIES, { DEFAULT_CONTRIBUTOR_INFO_USD_THRESHOLDS } from '../../../constants/policies';
 import { VirtualCardLimitIntervals } from '../../../constants/virtual-cards';
 import { getFxRate } from '../../../lib/currency';
 import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
@@ -13,11 +13,6 @@ import { GraphQLUseVendorPolicy } from '../enum/UseVendorPolicy';
 import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
 
 import { GraphQLAmount } from './Amount';
-
-const DEFAULT_CONTRIBUTION_INFO_USD_THRESHOLDS: Policies[POLICIES.CONTRIBUTOR_INFO_THRESHOLDS] = {
-  address: 5000e2,
-  legalName: 250e2,
-};
 
 export const GraphQLPolicies = new GraphQLObjectType({
   name: 'Policies',
@@ -171,7 +166,7 @@ export const GraphQLPolicies = new GraphQLObjectType({
         let thresholds = await getPolicy(host, POLICIES.CONTRIBUTOR_INFO_THRESHOLDS, req);
         if (!thresholds) {
           if (host?.currency === 'USD') {
-            thresholds = DEFAULT_CONTRIBUTION_INFO_USD_THRESHOLDS;
+            thresholds = DEFAULT_CONTRIBUTOR_INFO_USD_THRESHOLDS;
           } else {
             return null;
           }

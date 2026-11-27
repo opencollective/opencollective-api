@@ -119,4 +119,13 @@ export const DEFAULT_POLICIES: { [T in POLICIES]: Policies[T] } = {
   [POLICIES.TAX_FORM_THRESHOLDS]: undefined,
 };
 
+/**
+ * Contributor info thresholds applied to USD hosts that never stored a `CONTRIBUTOR_INFO_THRESHOLDS` policy, in cents.
+ * Any stored value (even `{}`) disables them.
+ */
+export const DEFAULT_CONTRIBUTOR_INFO_USD_THRESHOLDS: Required<Policies[POLICIES.CONTRIBUTOR_INFO_THRESHOLDS]> = {
+  address: 5000e2,
+  legalName: 250e2,
+};
+
 export default POLICIES;

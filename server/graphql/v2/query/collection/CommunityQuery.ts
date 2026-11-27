@@ -8,6 +8,7 @@ import { isNil } from 'lodash';
 import { roles } from '../../../../constants';
 import { CollectiveType } from '../../../../constants/collectives';
 import { findCommunitySearchAccountIds } from '../../../../lib/community-search';
+import { sqlMissingAddress, sqlMissingLegalName } from '../../../../lib/contributor-info';
 import { type DatabaseWithViews, getKysely, kyselyToSequelizeModels } from '../../../../lib/kysely';
 import { assertCanSeeAccount } from '../../../../lib/private-accounts';
 import SQLQueries from '../../../../lib/queries';
@@ -186,23 +187,9 @@ const getHostCommunity = async (replacements: CommunitySummaryArgs, options?: Co
           replacements.missingInformation.map(field => {
             switch (field) {
               case 'LEGAL_NAME':
-                return sql<boolean>`(fc."legalName" IS NULL OR TRIM(fc."legalName") = '')`;
+                return sqlMissingLegalName('fc');
               case 'ADDRESS':
-                // A location has an address if its formatted `address` is not blank, or (for legacy rows where
-                // the formatted address was never generated) if `structured` has at least one non-blank value
-                return sql<boolean>`NOT EXISTS (
-                  SELECT 1 FROM "Locations" l
-                  WHERE l."CollectiveId" = fc.id
-                  AND l."deletedAt" IS NULL
-                  AND (
-                    TRIM(COALESCE(l.address, '')) <> ''
-                    OR CASE
-                      WHEN jsonb_typeof(l.structured) = 'object'
-                      THEN EXISTS (SELECT 1 FROM jsonb_each_text(l.structured) kv WHERE TRIM(kv.value) <> '')
-                      ELSE FALSE
-                    END
-                  )
-                )`;
+                return sqlMissingAddress('fc');
               case 'COUNTRY_OF_INCORPORATION':
                 return eb.or([
                   sql<boolean>`fc."data" ->> 'taxableCountry' IS NULL`,

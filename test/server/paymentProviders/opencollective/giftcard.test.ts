@@ -585,6 +585,9 @@ describe('server/paymentProviders/opencollective/giftcard', () => {
           name: 'Gift Card Claimer',
         });
         userGiftCardCollective = userGiftCard.collective;
+        // Legal name and address, so the host's default contributor info thresholds do not get in the way
+        await userGiftCardCollective.update({ legalName: 'Gift Card Claimer' });
+        await models.Location.create({ CollectiveId: userGiftCardCollective.id, country: 'US', address: '1 Main St' });
         giftCardPaymentMethod = await models.PaymentMethod.create({
           name: 'gift card test',
           description: 'gift card test',

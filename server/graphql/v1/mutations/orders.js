@@ -16,6 +16,8 @@ import roles from '../../../constants/roles';
 import { VAT_OPTIONS } from '../../../constants/vat';
 import { purgeCacheForCollective } from '../../../lib/cache';
 import { checkCaptcha } from '../../../lib/check-captcha';
+import { isValidLegalName } from '../../../lib/contributor-info';
+import { assertContributorInfoForOrder } from '../../../lib/contributor-info-order';
 import { roundCentsAmount } from '../../../lib/currency';
 import { getOrCreateGuestProfile } from '../../../lib/guest-accounts';
 import { mustUpdateLocation } from '../../../lib/location';
@@ -58,7 +60,21 @@ import { fetchManualPaymentProviderWithReference } from '../../v2/input/ManualPa
 const debug = debugLib('orders');
 
 const mustUpdateNames = (fromAccount, fromAccountInfo) => {
-  return (!fromAccount.name && fromAccountInfo?.name) || (!fromAccount.legalName && fromAccountInfo?.legalName);
+  return (
+    (!fromAccount.name && fromAccountInfo?.name) ||
+    (!fromAccount.legalName && fromAccountInfo?.legalName) ||
+    // Replace a legal name that is too short for tax reporting by a valid one
+    (!isValidLegalName(fromAccount.legalName) && isValidLegalName(fromAccountInfo?.legalName))
+  );
+};
+
+/**
+ * Whether the info sent with an order is saved on the contributing profile: always, unless it's a guest contribution
+ * for an existing account (we don't want to let guests update the profile of an existing account that they may not own)
+ */
+const canUpdateProfileInfo = (fromAccount, isGuest) => {
+  const isVerifiedProfile = !fromAccount.data?.isGuest;
+  return !isGuest || !isVerifiedProfile;
 };
 
 /**
@@ -70,17 +86,19 @@ const checkAndUpdateProfileInfo = async (order, fromAccount, isGuest) => {
   const accountUpdatePayload = {};
   const existingLocation = await fromAccount.getLocation();
   const location = fromAccountInfo?.location || guestInfo?.location || existingLocation;
+  // Same sources as the contributor info check (`assertContributorInfoForOrder`)
+  const nameInfo = {
+    name: fromAccountInfo?.name,
+    legalName: fromAccountInfo?.legalName || guestInfo?.legalName,
+  };
 
-  // Update account with new info, unless we're making a guest contribution for an existing account
-  // (we don't want to let guests update the profile of an existing account that they may not own)
-  const isVerifiedProfile = !fromAccount.data?.isGuest;
-  if (!isGuest || !isVerifiedProfile) {
+  if (canUpdateProfileInfo(fromAccount, isGuest)) {
     if (mustUpdateLocation(existingLocation, location)) {
       await fromAccount.setLocation(location);
     }
-    if (mustUpdateNames(fromAccount, fromAccountInfo)) {
-      accountUpdatePayload.name = fromAccountInfo.name || fromAccountInfo.name;
-      accountUpdatePayload.legalName = fromAccountInfo.legalName || fromAccountInfo.legalName;
+    if (mustUpdateNames(fromAccount, nameInfo)) {
+      accountUpdatePayload.name = nameInfo.name || fromAccount.name;
+      accountUpdatePayload.legalName = nameInfo.legalName || fromAccount.legalName;
     }
     if (!isEmpty(accountUpdatePayload)) {
       await fromAccount.update(accountUpdatePayload);
@@ -441,6 +459,21 @@ export async function createOrder(order, req) {
         );
       }
     }
+
+    // Enforce the host's contributor info requirements (same rules as the contribution flow), before updating the
+    // profile (a rejected order must not save invalid info) and before any charge
+    await assertContributorInfoForOrder({
+      host,
+      fromCollective,
+      amount: (order.totalAmount || 0) - (order.taxAmount || 0) - (order.platformTipAmount || 0),
+      currency,
+      interval: order.interval,
+      providedInfo: {
+        legalName: order.fromAccountInfo?.legalName || order.guestInfo?.legalName,
+        location: order.fromAccountInfo?.location || order.guestInfo?.location,
+      },
+      profileWillBeUpdated: canUpdateProfileInfo(fromCollective, isGuest),
+    });
 
     // Update the contributing profile with legal name / location
     await checkAndUpdateProfileInfo(order, fromCollective, isGuest);

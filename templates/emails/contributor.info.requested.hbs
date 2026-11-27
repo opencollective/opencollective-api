@@ -1,0 +1,68 @@
+Subject: {{#if isManual}}{{{hostName}}} asks you to update {{#if isOrganization}}{{{collective.name}}}'s{{else}}your{{/if}} Open Collective profile{{else}}{{#if isReminder}}Reminder: {{else}}Action required: {{/if}}complete the information on {{#if isOrganization}}{{{collective.name}}}'s{{else}}your{{/if}} Open Collective profile{{/if}}
+
+{{> header}}
+
+{{#if recipientName}}
+<p>Hi {{recipientName}},</p>
+{{else}}
+<p>Hi,</p>
+{{/if}}
+
+{{#if isManual}}
+<p>
+  <strong>{{hostName}}</strong>, a fiscal host on Open Collective, asks you to add or correct the following
+  information on {{#if isOrganization}}<strong>{{collective.name}}</strong>'s{{else}}your{{/if}} profile to meet their
+  legal and compliance requirements:
+</p>
+
+<ul>
+  {{#each items}}
+  <li>{{this}}</li>
+  {{/each}}
+</ul>
+
+{{#if message}}
+<p>Message from {{hostName}}:</p>
+<blockquote style="margin: 0 0 16px; padding: 8px 16px; border-left: 4px solid #dcdcdc; white-space: pre-line;">{{message}}</blockquote>
+{{/if}}
+
+<p>
+  The button below will take you to {{#if isOrganization}}{{collective.name}}'s{{else}}your{{/if}} profile settings, where
+  you can update this information.
+</p>
+{{else}}
+<p>
+  {{#if isReminder}}We recently asked you to complete your profile, and some information is still missing. {{/if}}
+  {{#if isOrganization}}
+  Thank you for contributing on Open Collective on behalf of <strong>{{collective.name}}</strong>.
+  {{else}}
+  Thank you for contributing on Open Collective.
+  {{/if}}
+  Based on the amounts contributed, the following fiscal {{#if hasSeveralHosts}}hosts need{{else}}host needs{{/if}}
+  some information to meet their legal and compliance requirements:
+</p>
+
+<ul>
+  {{#each hosts}}
+  <li><strong>{{name}}</strong>: {{fieldsLabel}}</li>
+  {{/each}}
+</ul>
+
+<p>
+  The button below will take you to {{#if isOrganization}}{{collective.name}}'s{{else}}your{{/if}} profile settings, where
+  you can add this information. It will also be required for your next contributions to {{#if hasSeveralHosts}}these
+  hosts{{else}}this host{{/if}}.
+</p>
+{{/if}}
+
+<div style="text-align: center; margin: 32px 0;">
+  <a class="btn blue" href="{{config.host.website}}/dashboard/{{#if isOrganization}}{{collective.slug}}{{else}}me{{/if}}/info">
+    {{#if isManual}}Update{{else}}Complete{{/if}} {{#if isOrganization}}the{{else}}my{{/if}} profile
+  </a>
+</div>
+
+<p>
+  If you have any questions, please <a href="{{config.host.website}}/contact">contact us</a>.
+</p>
+
+{{> footer}}
