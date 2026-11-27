@@ -1,4 +1,5 @@
 import { expect } from 'chai';
+import { get } from 'lodash';
 
 import { CollectiveType } from '../../../server/constants/collectives';
 import FEATURE from '../../../server/constants/feature';
@@ -8,6 +9,7 @@ import {
   getFeaturesAccessMap,
   isFeatureBlockedForAccount,
 } from '../../../server/lib/allowed-features';
+import models from '../../../server/models';
 import {
   fakeActiveHost,
   fakeCollective,
@@ -55,6 +57,67 @@ describe('server/lib/allowed-features', () => {
   });
 
   // This test case is expected to be the most comprehensive one, covering all the feature flags
+  describe('isFeatureBlockedForAccount, compared with its previous implementation', () => {
+    /** The implementation before the flags were read with plain property accesses */
+    const isFeatureBlockedWithLodashPaths = (collective, feature: FEATURE): boolean => {
+      if (feature === FEATURE.PUBLIC_PROFILE) {
+        return get(collective, `data.features.${feature}`) === false;
+      }
+
+      return (
+        get(collective, `data.features.${FEATURE.ALL}`) === false ||
+        get(collective, `data.features.${feature}`) === false ||
+        get(collective, `data.isSuspended`) === true
+      );
+    };
+
+    it('answers like the lodash paths for every feature and shape of data', () => {
+      const dataShapes = [
+        undefined,
+        null,
+        {},
+        'not an object',
+        { features: null },
+        { features: 'not an object' },
+        { features: {} },
+        { isSuspended: true },
+        { isSuspended: false },
+        { isSuspended: 'true' },
+        { features: { ALL: false } },
+        { features: { ALL: true } },
+        { features: { ALL: null } },
+        { features: { ALL: 0 } },
+        ...Object.values(FEATURE).flatMap(feature => [
+          { features: { [feature]: false } },
+          { features: { [feature]: true } },
+          { features: { [feature]: null } },
+          { features: { [feature]: true, ALL: false } },
+          { features: { [feature]: false }, isSuspended: true },
+        ]),
+      ];
+
+      let nbBlocked = 0;
+      const accounts = [
+        null,
+        undefined,
+        ...dataShapes.map(data => ({ data })),
+        ...dataShapes.map(data => models.Collective.build({ data } as never)),
+      ];
+      for (const account of accounts) {
+        for (const feature of Object.values(FEATURE)) {
+          const expected = isFeatureBlockedWithLodashPaths(account, feature);
+          expect(
+            isFeatureBlockedForAccount(account as never, feature),
+            `${feature} ${JSON.stringify(account)}`,
+          ).to.equal(expected);
+          nbBlocked += expected ? 1 : 0;
+        }
+      }
+
+      expect(nbBlocked).to.be.above(1000);
+    });
+  });
+
   describe('getFeatureAccess', () => {
     it('returns UNSUPPORTED if collective is null', async () => {
       expect(await getFeatureAccess(null, FEATURE.CONVERSATIONS)).to.deep.eq({ access: 'UNSUPPORTED', reason: null });
