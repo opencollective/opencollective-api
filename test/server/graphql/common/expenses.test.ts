@@ -43,6 +43,8 @@ import {
   checkHasBalanceToPayExpense,
   getExpenseAmountInDifferentCurrency,
   isAccountHolderNameAndLegalNameMatch,
+  markExpenseAsIncomplete,
+  markExpenseAsSpam,
   rejectExpense,
   requestExpenseReApproval,
   unapproveExpense,
@@ -2456,6 +2458,7 @@ describe('server/graphql/common/expenses', () => {
   describe('status transitions with concurrent updates', () => {
     const loadStaleExpense = async (status: string) => {
       const { expense } = contexts.normal;
+      await expense.reload(); // Other tests update the row directly, bypassing this instance
       await expense.update({ status, data: { ...expense.data, isLocked: false } });
       return models.Expense.findByPk(expense.id);
     };
@@ -2510,6 +2513,40 @@ describe('server/graphql/common/expenses', () => {
       );
       await contexts.normal.expense.reload();
       expect(contexts.normal.expense.status).to.eq('REJECTED');
+    });
+
+    it('is a no-op when a concurrent request already made the same transition', async () => {
+      const staleExpense = await loadStaleExpense('APPROVED');
+      await models.Expense.update({ status: 'PENDING' }, { where: { id: staleExpense.id } });
+      const countActivities = () =>
+        models.Activity.count({ where: { ExpenseId: staleExpense.id, type: 'collective.expense.unapproved' } });
+      const activitiesBefore = await countActivities();
+
+      const result = await unapproveExpense(contexts.normal.req.hostAdmin, staleExpense);
+      expect(result.status).to.eq('PENDING');
+      expect(await countActivities()).to.eq(activitiesBefore);
+    });
+
+    it('markExpenseAsIncomplete does not override a concurrent payment', async () => {
+      const staleExpense = await loadStaleExpense('APPROVED');
+      await models.Expense.update({ status: 'PAID' }, { where: { id: staleExpense.id } });
+      await expect(markExpenseAsIncomplete(contexts.normal.req.hostAdmin, staleExpense)).to.be.rejectedWith(
+        /The status of this expense changed \(PAID\)/,
+      );
+      await contexts.normal.expense.reload();
+      expect(contexts.normal.expense.status).to.eq('PAID');
+    });
+
+    it('markExpenseAsSpam does not override a concurrent status change, nor limit the submitter', async () => {
+      const staleExpense = await loadStaleExpense('REJECTED');
+      await models.Expense.update({ status: 'APPROVED' }, { where: { id: staleExpense.id } });
+      await expect(markExpenseAsSpam(contexts.normal.req.hostAdmin, staleExpense)).to.be.rejectedWith(
+        /The status of this expense changed \(APPROVED\)/,
+      );
+      await contexts.normal.expense.reload();
+      expect(contexts.normal.expense.status).to.eq('APPROVED');
+      const submitter = await models.User.findByPk(contexts.normal.expense.UserId);
+      expect(submitter.data?.features?.USE_EXPENSES).to.not.eq(false);
     });
 
     it('rejectExpense does not override a concurrent status change', async () => {

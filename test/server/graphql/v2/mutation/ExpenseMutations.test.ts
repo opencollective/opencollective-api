@@ -29,6 +29,7 @@ import { crypto } from '../../../../../server/lib/encryption';
 import * as kycExpensesCheck from '../../../../../server/lib/kyc/expenses/kyc-expenses-check';
 import { EntityShortIdPrefix } from '../../../../../server/lib/permalink/entity-map';
 import stripe from '../../../../../server/lib/stripe';
+import * as transferwiseLib from '../../../../../server/lib/transferwise';
 import {
   TwoFactorAuthenticationHeader,
   TwoFactorMethod,
@@ -7839,36 +7840,68 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         sandbox.restore();
       });
 
-      it('unschedules a Wise expense, whose status is reset by the provider', async () => {
+      it('unschedules a Wise expense and the rest of its batch', async () => {
         const payoutMethod = await fakePayoutMethod({ type: PayoutMethodTypes.BANK_ACCOUNT });
-        const expense = await fakeExpense({
-          CollectiveId: wiseCollective.id,
-          status: 'SCHEDULED_FOR_PAYMENT',
-          PayoutMethodId: payoutMethod.id,
-          data: { batchGroup: { id: 'fake-batch-group' } },
-        });
+        const batchGroup = { id: 'unschedule-mutation-batch', version: 3 };
+        const [expense, otherExpenseInBatch] = await Promise.all(
+          [1, 2].map(() =>
+            fakeExpense({
+              amount: 1000,
+              CollectiveId: wiseCollective.id,
+              status: 'SCHEDULED_FOR_PAYMENT',
+              PayoutMethodId: payoutMethod.id,
+              data: { batchGroup, quote: { id: 'fake-quote' } },
+            }),
+          ),
+        );
 
-        // Like the real implementation, reset the status of every expense in the batch through other instances
-        const unscheduleStub = sandbox
-          .stub(paymentProviders.transferwise, 'unscheduleExpenseForPayment')
-          .callsFake(async () => {
-            await models.Expense.update({ status: 'APPROVED', data: {} }, { where: { id: expense.id } });
-          });
+        // Only stub the Wise API: the provider itself runs and resets the status of every expense in the batch
+        sandbox.stub(transferwiseLib, 'getBatchGroup').resolves(batchGroup);
+        const cancelBatchGroup = sandbox
+          .stub(transferwiseLib, 'cancelBatchGroup')
+          .resolves({ ...batchGroup, status: 'MARKED_FOR_CANCELLATION' });
 
         const mutationParams = { expenseId: expense.id, action: 'UNSCHEDULE_PAYMENT' };
         const result = await graphqlQueryV2(processExpenseMutation, mutationParams, wiseHostAdmin);
         result.errors && console.error(result.errors);
         expect(result.errors).to.not.exist;
         expect(result.data.processExpense.status).to.eq('APPROVED');
-        expect(unscheduleStub.calledOnce).to.be.true;
-        await expense.reload();
+        expect(cancelBatchGroup.calledOnce).to.be.true;
+
+        await Promise.all([expense.reload(), otherExpenseInBatch.reload()]);
         expect(expense.status).to.eq('APPROVED');
         expect(expense.lastEditedById).to.eq(wiseHostAdmin.id);
+        expect(expense.data).to.not.have.property('batchGroup');
+        expect(otherExpenseInBatch.status).to.eq('APPROVED');
+
+        const activities = await models.Activity.findAll({
+          where: { ExpenseId: expense.id, type: 'collective.expense.unscheduledForPayment' },
+        });
+        expect(activities).to.have.length(1);
+      });
+
+      it('does not call Wise if the expense changed since it was loaded', async () => {
+        const payoutMethod = await fakePayoutMethod({ type: PayoutMethodTypes.BANK_ACCOUNT });
+        const expense = await fakeExpense({
+          amount: 1000,
+          CollectiveId: wiseCollective.id,
+          status: 'SCHEDULED_FOR_PAYMENT',
+          PayoutMethodId: payoutMethod.id,
+          data: { batchGroup: { id: 'fake-batch-group' }, isLocked: true },
+        });
+        const unscheduleStub = sandbox.stub(paymentProviders.transferwise, 'unscheduleExpenseForPayment');
+
+        const mutationParams = { expenseId: expense.id, action: 'UNSCHEDULE_PAYMENT' };
+        const result = await graphqlQueryV2(processExpenseMutation, mutationParams, wiseHostAdmin);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.include('currently being processed');
+        expect(unscheduleStub.called).to.be.false;
       });
 
       it('does not override a status changed after the Wise batch was canceled', async () => {
         const payoutMethod = await fakePayoutMethod({ type: PayoutMethodTypes.BANK_ACCOUNT });
         const expense = await fakeExpense({
+          amount: 1000,
           CollectiveId: wiseCollective.id,
           status: 'SCHEDULED_FOR_PAYMENT',
           PayoutMethodId: payoutMethod.id,
@@ -7919,9 +7952,31 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(expense.status).to.eq('PENDING');
       });
 
+      it('SCHEDULE_FOR_PAYMENT does not call Wise if the expense is being processed', async () => {
+        const payoutMethod = await fakePayoutMethod({ type: PayoutMethodTypes.BANK_ACCOUNT });
+        const expense = await fakeExpense({
+          amount: 1000,
+          currency: 'USD',
+          CollectiveId: wiseCollective.id,
+          status: 'APPROVED',
+          PayoutMethodId: payoutMethod.id,
+          data: { isLocked: true },
+        });
+        const quoteStub = sandbox.stub(paymentProviders.transferwise, 'quoteExpense');
+        const scheduleStub = sandbox.stub(paymentProviders.transferwise, 'scheduleExpenseForPayment');
+
+        const mutationParams = { expenseId: expense.id, action: 'SCHEDULE_FOR_PAYMENT' };
+        const result = await graphqlQueryV2(processExpenseMutation, mutationParams, wiseHostAdmin);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.include('currently being processed');
+        expect(quoteStub.called).to.be.false;
+        expect(scheduleStub.called).to.be.false;
+      });
+
       it('unschedules a non-Wise expense', async () => {
         const payoutMethod = await fakePayoutMethod({ type: PayoutMethodTypes.OTHER });
         const expense = await fakeExpense({
+          amount: 1000,
           CollectiveId: wiseCollective.id,
           status: 'SCHEDULED_FOR_PAYMENT',
           PayoutMethodId: payoutMethod.id,
