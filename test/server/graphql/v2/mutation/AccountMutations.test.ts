@@ -2976,7 +2976,9 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
 
         const result = await graphqlQueryV2(archiveAccountMutation, { account: { legacyId: parent.id } }, admin);
         expect(result.errors).to.exist;
-        expect(result.errors[0].message).to.equal('Cannot archive collective with balance > 0');
+        expect(result.errors[0].message).to.equal(
+          `Cannot archive collective with balance > 0. These accounts still hold a positive balance: ${positive.name} (@${positive.slug}): $100.00`,
+        );
 
         await Promise.all([parent, project, order].map(entity => entity.reload()));
         expect(order.status).to.equal(OrderStatuses.ACTIVE);

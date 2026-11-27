@@ -15,6 +15,7 @@ import * as github from '../../../lib/github';
 import { canSeePrivateAccount } from '../../../lib/private-accounts';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../../lib/rate-limit';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
+import { formatCurrency } from '../../../lib/utils';
 import models, { Collective, sequelize } from '../../../models';
 import { isRemoteUserRoot } from '../../common/scope-check';
 import { NotFound, RateLimitExceeded, Unauthorized, ValidationFailed } from '../../errors';
@@ -422,10 +423,19 @@ export async function archiveCollective(_, args, req) {
     });
     // The combined balance checked above can be 0 while one account has a positive balance offset by a negative one
     // elsewhere in the family, so check each account on its own like `changeHost` does.
+    const accountsWithBalance: string[] = [];
     for (const account of [collective, ...hostedChildren]) {
-      if ((await account.getBalance()) > 0) {
-        throw new Error('Cannot archive collective with balance > 0');
+      const accountBalance = await account.getBalance();
+      if (accountBalance > 0) {
+        accountsWithBalance.push(
+          `${account.name} (@${account.slug}): ${formatCurrency(accountBalance, account.currency)}`,
+        );
       }
+    }
+    if (accountsWithBalance.length > 0) {
+      throw new Error(
+        `Cannot archive collective with balance > 0. These accounts still hold a positive balance: ${accountsWithBalance.join(', ')}`,
+      );
     }
     const processingExpensesCount = await models.Expense.count({
       where: { CollectiveId: [collective.id, ...hostedChildren.map(c => c.id)], status: ExpenseStatuses.PROCESSING },
