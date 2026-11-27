@@ -242,6 +242,18 @@ describe('server/graphql/v2/mutation/ContributorInfoMutations', () => {
       expect(lib).to.be.null;
     });
 
+    it('compares with the values from before the email was sent', async () => {
+      const user = await fakeUser();
+      await user.collective.setLocation({ country: 'FR', address: '1 rue de Paris' });
+      await contribute(user.collective.id);
+      // The contributor updates the address while the email is being sent
+      sendMessage.callsFake(async () => {
+        await user.collective.setLocation({ country: 'FR', address: '2 rue de Paris' });
+      });
+      expect((await request(user.collective, { fields: ['ADDRESS'] })).data.requestContributorInfo).to.be.true;
+      expect(await getPendingContributorInfoRequest({ host, profile: user.collective })).to.be.null;
+    });
+
     it('compares the whole address when no part was selected', async () => {
       const user = await fakeUser();
       await user.collective.setLocation({ country: 'FR', address: '1 rue de Paris' });

@@ -341,86 +341,6 @@ const ADDRESS_PART_LABELS: Record<AddressPart, string> = {
   country: 'country',
 };
 
-/**
- * Sends a host admin's request to add or correct a profile's information, with an optional message. Recorded as a
- * request for the current year, so the daily job does not send a duplicate one and reminds the contributor later if
- * the information is still missing. The activity is only saved after a confirmed send.
- */
-export const sendManualContributorInfoRequest = async ({
-  host,
-  profile,
-  fields,
-  addressParts = [],
-  message,
-  requestedBy,
-  now = new Date(),
-}: {
-  host: Collective;
-  profile: Collective;
-  fields: MissingField[];
-  addressParts?: AddressPart[];
-  message?: string;
-  requestedBy: User;
-  now?: Date;
-}): Promise<{ recipients: number; sentTo: User[] }> => {
-  const recipients = await getRecipients(profile);
-  const items = [
-    fields.includes('legalName') && 'Legal name',
-    fields.includes('address') &&
-      (addressParts.length ? `Address: ${addressParts.map(part => ADDRESS_PART_LABELS[part]).join(', ')}` : 'Address'),
-  ].filter(Boolean);
-
-  let sentTo: User[] = [];
-  for (const user of recipients) {
-    try {
-      await sendEmail(user, {
-        collective: { name: profile.name, slug: profile.slug, type: profile.type },
-        recipientName: profile.type === CollectiveType.USER ? profile.name : null,
-        isOrganization: profile.type === CollectiveType.ORGANIZATION,
-        isManual: true,
-        hostName: host.name,
-        items,
-        message: message || null,
-      });
-      sentTo = [...sentTo, user];
-    } catch (error) {
-      logger.error(`contributor-info: failed to email user #${user.id} for profile #${profile.id}: ${error.message}`);
-      reportErrorToSentry(error, { extra: { profileId: profile.id, userId: user.id, hostId: host.id } });
-    }
-  }
-
-  if (sentTo.length) {
-    const location = await profile.getLocation();
-    const entry: ActivityHostEntry = {
-      id: host.id,
-      slug: host.slug,
-      name: host.name,
-      year: now.getUTCFullYear(),
-      missingFields: fields,
-      isReminder: false,
-      addressParts: fields.includes('address') ? addressParts : [],
-    };
-    await Activity.create({
-      type: TEMPLATE,
-      CollectiveId: profile.id,
-      FromCollectiveId: profile.id,
-      HostCollectiveId: host.id,
-      UserId: requestedBy.id,
-      data: {
-        notify: false,
-        isManual: true,
-        isReminder: false,
-        hosts: [entry],
-        fingerprints: getFingerprints(profile, location, fields, entry.addressParts),
-        message: message || null,
-        recipientIds: sentTo.map(u => u.id),
-      },
-    });
-  }
-
-  return { recipients: recipients.length, sentTo };
-};
-
 /** Short hash of a value, to detect later changes without storing personal information in the activity */
 const fingerprint = (value: unknown): string =>
   createHash('sha256')
@@ -450,6 +370,89 @@ const getFingerprints = (
     }
   }
   return Object.fromEntries(Object.entries(values).map(([key, value]) => [key, fingerprint(value)]));
+};
+
+/**
+ * Sends a host admin's request to add or correct a profile's information, with an optional message. Recorded as a
+ * request for the current year, so the daily job does not send a duplicate one and reminds the contributor later if
+ * the information is still missing. The activity is only saved after a confirmed send.
+ */
+export const sendManualContributorInfoRequest = async ({
+  host,
+  profile,
+  fields,
+  addressParts = [],
+  message,
+  requestedBy,
+  now = new Date(),
+}: {
+  host: Collective;
+  profile: Collective;
+  fields: MissingField[];
+  addressParts?: AddressPart[];
+  message?: string;
+  requestedBy: User;
+  now?: Date;
+}): Promise<{ recipients: number; sentTo: User[] }> => {
+  const recipients = await getRecipients(profile);
+  const items = [
+    fields.includes('legalName') && 'Legal name',
+    fields.includes('address') &&
+      (addressParts.length ? `Address: ${addressParts.map(part => ADDRESS_PART_LABELS[part]).join(', ')}` : 'Address'),
+  ].filter(Boolean);
+
+  // Baseline of the requested values, taken before sending: a value changed while sending must count as provided
+  const requestedAddressParts = fields.includes('address') ? addressParts : [];
+  const fingerprints = getFingerprints(profile, await profile.getLocation(), fields, requestedAddressParts);
+
+  let sentTo: User[] = [];
+  for (const user of recipients) {
+    try {
+      await sendEmail(user, {
+        collective: { name: profile.name, slug: profile.slug, type: profile.type },
+        recipientName: profile.type === CollectiveType.USER ? profile.name : null,
+        isOrganization: profile.type === CollectiveType.ORGANIZATION,
+        isManual: true,
+        hostName: host.name,
+        items,
+        message: message || null,
+      });
+      sentTo = [...sentTo, user];
+    } catch (error) {
+      logger.error(`contributor-info: failed to email user #${user.id} for profile #${profile.id}: ${error.message}`);
+      reportErrorToSentry(error, { extra: { profileId: profile.id, userId: user.id, hostId: host.id } });
+    }
+  }
+
+  if (sentTo.length) {
+    const entry: ActivityHostEntry = {
+      id: host.id,
+      slug: host.slug,
+      name: host.name,
+      year: now.getUTCFullYear(),
+      missingFields: fields,
+      isReminder: false,
+      addressParts: requestedAddressParts,
+    };
+    await Activity.create({
+      type: TEMPLATE,
+      CollectiveId: profile.id,
+      FromCollectiveId: profile.id,
+      HostCollectiveId: host.id,
+      UserId: requestedBy.id,
+      data: {
+        notify: false,
+        isManual: true,
+        isReminder: false,
+        hosts: [entry],
+        fingerprints,
+        message: message || null,
+        recipientIds: sentTo.map(u => u.id),
+      },
+    });
+  }
+
+  return { recipients: recipients.length, sentTo };
 };
 
 /** Requests older than this are not reported as pending */
