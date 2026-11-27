@@ -39,7 +39,7 @@ import {
   MetricProvider,
   recordPaymentOutcome,
 } from '../../lib/sentry/metrics';
-import stripe, { convertToStripeAmount, getDashboardObjectIdURL } from '../../lib/stripe';
+import stripe, { convertFromStripeAmount, convertToStripeAmount, getDashboardObjectIdURL } from '../../lib/stripe';
 import { createTransactionsFromPaidStripeExpense, getPaymentProcessorFeeVendor } from '../../lib/transactions';
 import models, { sequelize } from '../../models';
 import Expense, { ExpenseStatus } from '../../models/Expense';
@@ -1163,7 +1163,7 @@ export const chargeDisputeClosed = async (event: Stripe.Event) => {
         });
       }
 
-      const amount = Math.abs(feeDetails.amount);
+      const amount = convertFromStripeAmount(currency, Math.abs(feeDetails.amount));
       const fiscalHost = await models.Collective.findByPk(chargeTransaction.HostCollectiveId);
       const hostCurrencyFxRate = await getFxRate(currency, fiscalHost.currency);
       const vendor = await getPaymentProcessorFeeVendor(PAYMENT_METHOD_SERVICE.STRIPE);
