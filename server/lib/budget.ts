@@ -1,11 +1,14 @@
+import assert from 'assert';
+
 import config from 'config';
 import { difference, groupBy } from 'lodash';
-import type { FindAttributeOptions, GroupOption } from 'sequelize';
+import type { FindAttributeOptions, GroupOption, Transaction as SequelizeTransaction } from 'sequelize';
 import { QueryTypes } from 'sequelize';
 
 import { CollectiveType } from '../constants/collectives';
 import type { SupportedCurrency } from '../constants/currencies';
 import expenseStatus from '../constants/expense-status';
+import { POSTGRES_LOCK_NAMESPACES } from '../constants/postgres-locks';
 import { TransactionTypes } from '../constants/transactions';
 import type { Loaders } from '../graphql/loaders';
 import models, { type Collective, Op, sequelize } from '../models';
@@ -60,6 +63,8 @@ type GetBalanceAmountOptions = {
   withBlockedFunds?: boolean;
   version?: BudgetVersion | null;
   currency?: SupportedCurrency;
+  /** Run the balance queries in this SQL transaction (bypasses loaders) */
+  transaction?: SequelizeTransaction;
 };
 
 type GetBalancesOptions = {
@@ -69,6 +74,7 @@ type GetBalancesOptions = {
   version?: BudgetVersion;
   useMaterializedView?: boolean;
   loaders?: Loaders | null;
+  transaction?: SequelizeTransaction;
 };
 
 type GetBalancesWithVersionOptions = GetBalancesOptions;
@@ -149,6 +155,7 @@ type SumCollectivesTransactionsOptions = {
   extraAttributes?: GroupByAttribute[];
   /** Set to false when only extraAttributes are read (e.g. COUNT(DISTINCT ...)): amounts in mixed currencies are then summed as-is */
   groupByCurrency?: boolean;
+  transaction?: SequelizeTransaction;
 };
 
 type GetYearlyBudgetAmountOptions = {
@@ -159,6 +166,7 @@ type GetYearlyBudgetAmountOptions = {
 type GetCurrentCollectiveBalancesOptions = {
   loaders?: Loaders | null;
   withBlockedFunds?: boolean;
+  transaction?: SequelizeTransaction;
 };
 
 type GetCurrentCollectiveTransactionStatsOptions = {
@@ -236,7 +244,7 @@ export async function getCollectiveIds(collective: Collective, includeChildren?:
 
 export async function getBalanceAmount(
   collective: Collective,
-  { loaders, endDate, includeChildren, withBlockedFunds, version, currency }: GetBalanceAmountOptions = {},
+  { loaders, endDate, includeChildren, withBlockedFunds, version, currency, transaction }: GetBalanceAmountOptions = {},
 ): Promise<CurrencyAmount> {
   version = version || collective.settings?.budget?.version || DEFAULT_BUDGET_VERSION;
   currency = currency || collective.currency;
@@ -250,13 +258,14 @@ export async function getBalanceAmount(
   };
 
   // Optimized version using loaders
-  if (loaders && version === DEFAULT_BUDGET_VERSION) {
+  if (loaders && !transaction && version === DEFAULT_BUDGET_VERSION) {
     const balanceLoader = loaders.Collective.balance.buildLoader(transactionArgs);
     result = (await balanceLoader.load(collective.id)) as CollectiveAmount;
   } else {
     const results = await getBalances([collective.id], {
       ...transactionArgs,
       version,
+      transaction,
     });
     // Coming from sumCollectivesTransactions, we're guaranteed to have only one result per Collective
     result = results[collective.id];
@@ -279,6 +288,7 @@ export async function getBalances(
     version = DEFAULT_BUDGET_VERSION,
     useMaterializedView = FAST_BALANCE,
     loaders = null,
+    transaction = undefined,
   }: GetBalancesOptions = {},
 ): Promise<TotalsByCollective> {
   // Note: Historical balances (endDate path) don't support withBlockedFunds - the slow path will throw
@@ -286,11 +296,16 @@ export async function getBalances(
   const fastResults =
     useMaterializedView === true && !includeChildren
       ? endDate
-        ? FAST_BALANCE_SUPPORTED_VERSIONS.includes(version) && !withBlockedFunds
+        ? // The historical path reads a materialized view, which can't see uncommitted entries of `transaction`
+          FAST_BALANCE_SUPPORTED_VERSIONS.includes(version) && !withBlockedFunds && !transaction
           ? await getHistoricalCollectiveBalances(collectiveIds, endDate)
           : {}
         : version === DEFAULT_BUDGET_VERSION
-          ? await getCurrentCollectiveBalances(collectiveIds, { loaders, withBlockedFunds })
+          ? await getCurrentCollectiveBalances(collectiveIds, {
+              loaders: transaction ? null : loaders,
+              withBlockedFunds,
+              transaction,
+            })
           : {}
       : {};
   const missingCollectiveIds = difference(collectiveIds.map(Number), Object.keys(fastResults).map(Number));
@@ -306,6 +321,7 @@ export async function getBalances(
     withBlockedFunds,
     excludeRefunds: false,
     hostCollectiveId: version === 'v3' ? { [Op.not]: null } : null,
+    transaction,
   });
 
   return { ...fastResults, ...results };
@@ -885,6 +901,7 @@ export async function sumCollectivesTransactions(
     groupByAttributes = [],
     extraAttributes = [],
     groupByCurrency = true,
+    transaction = undefined,
   }: SumCollectivesTransactionsOptions = {},
 ): Promise<TotalsByCollective> {
   const separatePaymentProcessorFees = parseToBoolean(config.ledger.separatePaymentProcessorFees) === true;
@@ -1106,6 +1123,7 @@ export async function sumCollectivesTransactions(
     include,
     group,
     raw: true,
+    transaction,
     // Ordering by latest transaction date makes sure we aggregate amounts in the currency of the latest transaction when aggregating below (to avoid converting back and forth between currencies)
     order: [[sequelize.literal('MAX("Transaction"."createdAt")'), 'DESC']],
   });
@@ -1161,7 +1179,7 @@ export async function sumCollectivesTransactions(
   }
 
   if (withBlockedFunds) {
-    const blockedFundsResults = await getBlockedExpenseFunds(ids);
+    const blockedFundsResults = await getBlockedExpenseFunds(ids, { transaction });
     for (const collectiveId of ids) {
       if (blockedFundsResults[collectiveId]) {
         const { CollectiveId, currency, value } = blockedFundsResults[collectiveId];
@@ -1293,7 +1311,10 @@ export async function getYearlyBudgets(collectiveIds: number[] | readonly number
  * Calculate the total "blocked funds" for each collective
  * Expenses that are PROCESSING or SCHEDULED_FOR_PAYMENT are considered "blocked funds"
  */
-export async function getBlockedExpenseFunds(collectiveIds: number[] | readonly number[]): Promise<TotalsByCollective> {
+export async function getBlockedExpenseFunds(
+  collectiveIds: number[] | readonly number[],
+  { transaction }: { transaction?: SequelizeTransaction } = {},
+): Promise<TotalsByCollective> {
   const blockedFundResults = await models.Expense.findAll({
     attributes: [
       'CollectiveId',
@@ -1306,6 +1327,7 @@ export async function getBlockedExpenseFunds(collectiveIds: number[] | readonly 
     },
     group: ['CollectiveId', 'currency'],
     raw: true,
+    transaction,
   });
 
   const totals: TotalsByCollective = {};
@@ -1385,24 +1407,26 @@ export async function getHistoricalCollectiveBalances(
 // Get current balance for collective using a combination of speed and accuracy.
 export async function getCurrentCollectiveBalances(
   collectiveIds: number[] | readonly number[],
-  { loaders = null, withBlockedFunds = false }: GetCurrentCollectiveBalancesOptions = {},
+  { loaders = null, withBlockedFunds = false, transaction = undefined }: GetCurrentCollectiveBalancesOptions = {},
 ): Promise<TotalsByCollective> {
-  const fastResults = loaders
-    ? await Promise.all(
-        collectiveIds.map(collectiveId => loaders.Collective.currentCollectiveBalance.load(collectiveId)),
-      ).then(results => results.filter(el => !!el))
-    : await sequelize.query<CurrentBalanceRow>(
-        `SELECT ccb.*
+  const fastResults =
+    loaders && !transaction
+      ? await Promise.all(
+          collectiveIds.map(collectiveId => loaders.Collective.currentCollectiveBalance.load(collectiveId)),
+        ).then(results => results.filter(el => !!el))
+      : await sequelize.query<CurrentBalanceRow>(
+          `SELECT ccb.*
          FROM "CurrentCollectiveBalance" ccb
          INNER JOIN "Collectives" c ON ccb."CollectiveId" = c."id"
          AND COALESCE(c."settings"->'budget'->>'version', 'v2') = 'v2'
          WHERE ccb."CollectiveId" IN (:collectiveIds)`,
-        {
-          replacements: { collectiveIds },
-          type: QueryTypes.SELECT,
-          raw: true,
-        },
-      );
+          {
+            replacements: { collectiveIds },
+            type: QueryTypes.SELECT,
+            raw: true,
+            transaction,
+          },
+        );
 
   const totals: TotalsByCollective = {};
 
@@ -1420,7 +1444,7 @@ export async function getCurrentCollectiveBalances(
   }
 
   if (withBlockedFunds) {
-    const blockedFundsResults = await getBlockedExpenseFunds(Object.keys(totals).map(Number));
+    const blockedFundsResults = await getBlockedExpenseFunds(Object.keys(totals).map(Number), { transaction });
     for (const collectiveId of Object.keys(totals)) {
       if (blockedFundsResults[collectiveId]) {
         const { CollectiveId, currency, value } = blockedFundsResults[collectiveId];
@@ -1464,4 +1488,48 @@ export async function getCurrentCollectiveTransactionStats(
   }
 
   return totals;
+}
+
+/**
+ * Acquires a transaction-scoped lock on the balance of `collectiveId`, released when `transaction` commits or
+ * rolls back. Use it to make a "check balance, then debit" sequence atomic against concurrent debits: take
+ * the lock first, then read the balance with `{ transaction }` and write the ledger entries in the same
+ * transaction. Waits at most `timeoutMs` for the lock, then throws. The transaction's previous `lock_timeout`
+ * is restored once the lock is acquired.
+ *
+ * Keep the critical section to SQL on `transaction`: anything slow done while holding the lock (HTTP calls, queries
+ * on other connections) makes every other operation on this account wait, each holding a pooled connection.
+ */
+export async function lockCollectiveBalance(
+  collectiveId: number,
+  transaction: SequelizeTransaction,
+  { timeoutMs = 3 * 1000 }: { timeoutMs?: number } = {},
+): Promise<void> {
+  assert(collectiveId, 'Cannot lock the balance for account');
+  assert(transaction, 'lockCollectiveBalance must be called within a SQL transaction');
+
+  const [{ previousLockTimeout }] = await sequelize.query<{ previousLockTimeout: string }>(
+    `SELECT current_setting('lock_timeout') AS "previousLockTimeout"`,
+    { type: QueryTypes.SELECT, transaction },
+  );
+  await sequelize.query(`SELECT set_config('lock_timeout', :timeout, true)`, {
+    replacements: { timeout: `${Math.max(1, Math.round(timeoutMs))}ms` },
+    transaction,
+  });
+  try {
+    await sequelize.query('SELECT pg_advisory_xact_lock(:namespace, :collectiveId)', {
+      replacements: { namespace: POSTGRES_LOCK_NAMESPACES.COLLECTIVE_BALANCE, collectiveId },
+      transaction,
+    });
+  } catch (error) {
+    // 55P03 = lock_not_available (lock_timeout reached)
+    if (error?.original?.code === '55P03' || error?.parent?.code === '55P03') {
+      throw new Error('Another operation on this account balance is in progress, please try again in a moment.');
+    }
+    throw error;
+  }
+  await sequelize.query(`SELECT set_config('lock_timeout', :previousLockTimeout, true)`, {
+    replacements: { previousLockTimeout },
+    transaction,
+  });
 }

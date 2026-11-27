@@ -162,6 +162,64 @@ describe('server/paymentProviders/opencollective/collective', () => {
       });
     });
 
+    describe('Concurrent balance transfers', () => {
+      let balance: number;
+
+      beforeEach('Create initial data', async () => {
+        await setupHostAndCollectives('USD');
+        await fundCollective(fromCollective, 10000);
+        balance = await fromCollective.getBalance();
+        expect(balance).to.be.above(0);
+      });
+
+      it('does not let two concurrent orders spend the same funds', async () => {
+        const orders = await Promise.all([
+          createOrder(fromCollective, toCollective, balance),
+          createOrder(fromCollective, toCollective, balance),
+        ]);
+        const results = await Promise.allSettled(orders.map(order => processOrder(collectivePaymentProvider, order)));
+
+        expect(results.map(r => r.status).sort()).to.deep.equal(['fulfilled', 'rejected']);
+        const rejected = results.find(r => r.status === 'rejected') as PromiseRejectedResult;
+        expect(rejected.reason.message).to.include('Not enough funds available ($0.00 left)');
+        expect(await fromCollective.getBalance()).to.eq(0);
+        expect(await toCollective.getBalance()).to.eq(balance);
+      });
+
+      it('only accepts as many concurrent orders as the balance covers', async () => {
+        const amount = Math.floor(balance / 2) - 100; // Two orders fit, a third one doesn't
+        const orders = await Promise.all(
+          Array.from({ length: 5 }, () => createOrder(fromCollective, toCollective, amount)),
+        );
+        const results = await Promise.allSettled(orders.map(order => processOrder(collectivePaymentProvider, order)));
+
+        expect(results.filter(r => r.status === 'fulfilled')).to.have.length(2);
+        expect(await fromCollective.getBalance()).to.eq(balance - 2 * amount);
+        expect(await toCollective.getBalance()).to.eq(2 * amount);
+      });
+
+      it('does not let a refund and a transfer spend the same funds', async () => {
+        // Move the whole balance to `toCollective`, then race a refund of that transfer against a transfer out of it
+        const transfer = await processOrder(
+          collectivePaymentProvider,
+          await createOrder(fromCollective, toCollective, balance),
+        );
+        expect(await toCollective.getBalance()).to.eq(balance);
+
+        const transferOut = await createOrder(toCollective, fromCollective, balance);
+        const results = await Promise.allSettled([
+          collectivePaymentProvider.refundTransaction(transfer, user),
+          processOrder(collectivePaymentProvider, transferOut),
+        ]);
+
+        expect(results.map(r => r.status).sort()).to.deep.equal(['fulfilled', 'rejected']);
+        const rejected = results.find(r => r.status === 'rejected') as PromiseRejectedResult;
+        expect(rejected.reason.message).to.include('Not enough funds available ($0.00 left)');
+        expect(await toCollective.getBalance()).to.eq(0);
+        expect(await fromCollective.getBalance()).to.eq(balance);
+      });
+    });
+
     describe('With a Host in a different currency (split HOST_FEE transactions)', () => {
       const HOST_FEE_PERCENT = 10;
       let sandbox;

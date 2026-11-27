@@ -9,6 +9,7 @@ import { CollectiveType } from '../constants/collectives';
 import { SupportedCurrency } from '../constants/currencies';
 import ExpenseType from '../constants/expense-type';
 import { PAYMENT_METHOD_SERVICE } from '../constants/paymentMethods';
+import { POSTGRES_LOCK_NAMESPACES } from '../constants/postgres-locks';
 import TierType from '../constants/tiers';
 import { TransactionKind } from '../constants/transaction-kind';
 import { TransactionTypes } from '../constants/transactions';
@@ -655,10 +656,6 @@ export const getTaxVendor = memoize(async (taxId): Promise<Collective> => {
  */
 export const PLATFORM_TIPS_ACCOUNT_DATA_FLAG = 'isPlatformTipsAccount';
 
-// Namespace for the per-host advisory lock that serializes first-time platform-tips account creation
-// (pg_advisory_xact_lock takes two int4 keys: this namespace + the host id). Arbitrary but stable.
-const PLATFORM_TIPS_ACCOUNT_LOCK_NAMESPACE = 20260513;
-
 /**
  * Returns the per-host platform-tips account for a host, or null if it has not been created yet.
  * Identified by the explicit `data.isPlatformTipsAccount` flag.
@@ -697,7 +694,7 @@ export const getOrCreateHostPlatformTipsAccount = async (
   // xact-scoped; the only caller without one (the backfill script) is single-threaded.
   if (transaction) {
     await sequelize.query('SELECT pg_advisory_xact_lock(:namespace, :hostId)', {
-      replacements: { namespace: PLATFORM_TIPS_ACCOUNT_LOCK_NAMESPACE, hostId: host.id },
+      replacements: { namespace: POSTGRES_LOCK_NAMESPACES.PLATFORM_TIPS_ACCOUNT_CREATION, hostId: host.id },
       transaction,
     });
     const afterLock = await getHostPlatformTipsAccount(host, { transaction });
