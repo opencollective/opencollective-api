@@ -12,6 +12,7 @@ import roles from '../../../../../server/constants/roles';
 import { idDecode, idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
 import emailLib from '../../../../../server/lib/email';
 import { crypto } from '../../../../../server/lib/encryption';
+import RateLimit from '../../../../../server/lib/rate-limit';
 import models from '../../../../../server/models';
 import {
   fakeApplication,
@@ -709,6 +710,139 @@ describe('server/graphql/v2/mutation/IndividualMutations', () => {
       expect(members).to.have.length(1);
       expect(members[0].role).to.equal(roles.ADMIN);
       expect(members[0].MemberCollectiveId).to.equal(user.CollectiveId);
+    });
+  });
+
+  describe('createIndividual', () => {
+    let sandbox, emailSendSpy;
+
+    const createIndividualMutation = gql`
+      mutation CreateIndividual($individual: IndividualCreateInput!) {
+        createIndividual(individual: $individual) {
+          id
+          name
+          type
+        }
+      }
+    `;
+
+    before(async () => {
+      sandbox = createSandbox();
+      await startTestServer();
+    });
+
+    beforeEach(() => {
+      emailSendSpy = sandbox.spy(emailLib, 'send');
+    });
+
+    afterEach(() => {
+      sandbox.restore();
+    });
+
+    after(async () => {
+      await stopTestServer();
+    });
+
+    it('fails if not authenticated', async () => {
+      const result = await graphqlQueryV2(createIndividualMutation, { individual: { email: randEmail() } });
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('You need to be logged in to manage account.');
+    });
+
+    it('creates a profile that requires completion, without emailing the person', async () => {
+      const remoteUser = await fakeUser();
+      const email = randEmail();
+      const result = await graphqlQueryV2(
+        createIndividualMutation,
+        { individual: { email: `  ${email.toUpperCase()} `, name: 'Jane Doe', legalName: 'Jane Legal Doe' } },
+        remoteUser,
+      );
+
+      expect(result.errors).to.not.exist;
+      const individual = result.data.createIndividual;
+      expect(individual.type).to.equal('INDIVIDUAL');
+      expect(individual.name).to.equal('Jane Doe');
+
+      const user = await models.User.findOne({ where: { email }, include: [{ association: 'collective' }] });
+      expect(user).to.exist;
+      expect(idEncode(user.CollectiveId, IDENTIFIER_TYPES.ACCOUNT)).to.equal(individual.id);
+      expect(user.collective.legalName).to.equal('Jane Legal Doe');
+      expect(user.collective.CreatedByUserId).to.equal(user.id);
+      expect(user.data.creationRequest.createdByUserId).to.equal(remoteUser.id);
+      expect(user.collective.data.requiresProfileCompletion).to.be.true;
+      expect(emailSendSpy.called).to.be.false;
+    });
+
+    it('fails when the email already has an account', async () => {
+      const remoteUser = await fakeUser();
+      const existingUser = await fakeUser();
+      for (const email of [existingUser.email, existingUser.email.toUpperCase(), remoteUser.email]) {
+        const result = await graphqlQueryV2(createIndividualMutation, { individual: { email } }, remoteUser);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].extensions.code).to.equal('EMAIL_ALREADY_EXISTS');
+      }
+    });
+
+    it('fails when the email is pending validation or belongs to a deleted user', async () => {
+      const remoteUser = await fakeUser();
+      const pendingEmail = randEmail();
+      await fakeUser({ emailWaitingForValidation: pendingEmail });
+      const deletedUser = await fakeUser();
+      await deletedUser.destroy();
+
+      for (const email of [pendingEmail, deletedUser.email]) {
+        const result = await graphqlQueryV2(createIndividualMutation, { individual: { email } }, remoteUser);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].extensions.code).to.equal('EMAIL_ALREADY_EXISTS');
+      }
+    });
+
+    it('fails when the email is blank', async () => {
+      const remoteUser = await fakeUser();
+      const result = await graphqlQueryV2(createIndividualMutation, { individual: { email: '  ' } }, remoteUser);
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('Email is required');
+    });
+
+    it('fails when the email is malformed', async () => {
+      const remoteUser = await fakeUser();
+      const result = await graphqlQueryV2(
+        createIndividualMutation,
+        { individual: { email: 'not-an-email' } },
+        remoteUser,
+      );
+      expect(result.errors).to.exist;
+      expect(result.errors[0].extensions.code).to.equal('ValidationFailed');
+      expect(result.errors[0].message).to.equal('Email must be valid');
+    });
+
+    it('is not allowed with a personal token', async () => {
+      const remoteUser = await fakeUser();
+      const personalToken = await fakePersonalToken({ user: remoteUser, scope: [OAuthScopes.account] });
+      const email = randEmail();
+      const result = await graphqlQueryV2(
+        createIndividualMutation,
+        { individual: { email } },
+        remoteUser,
+        null,
+        null,
+        null,
+        personalToken,
+      );
+      expect(result.errors).to.exist;
+      expect(result.errors[0].extensions.code).to.equal('Forbidden');
+      expect(await models.User.count({ where: { email } })).to.equal(0);
+    });
+
+    it('is rate limited per signed-in user', async () => {
+      // Rate limits are ignored in tests, as for v1 `createUser`: simulate the limit being reached.
+      sandbox.stub(RateLimit.prototype, 'registerCall').resolves(false);
+      const remoteUser = await fakeUser();
+      const email = randEmail();
+      const result = await graphqlQueryV2(createIndividualMutation, { individual: { email } }, remoteUser);
+      expect(result.errors).to.exist;
+      expect(result.errors[0].extensions.code).to.equal('RateLimitExceeded');
+      expect(await models.User.count({ where: { email } })).to.equal(0);
     });
   });
 });

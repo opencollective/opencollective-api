@@ -36,6 +36,7 @@ type CreateUserOptions = {
   creationRequest?: {
     ip: string;
     userAgent: string;
+    createdByUserId?: number;
   };
   transaction?: Sequelize.Transaction;
 };
@@ -46,7 +47,7 @@ export const createUser = (
     legalName?: string;
     email: string;
     newsletterOptIn?: boolean;
-    location: Record<string, unknown>;
+    location?: Record<string, unknown>;
   },
   {
     organizationData,

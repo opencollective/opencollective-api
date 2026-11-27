@@ -31,7 +31,7 @@ import Order from './Order';
 const debug = debugLib('models:User');
 
 type UserData = {
-  creationRequest?: { ip: string; userAgent: string };
+  creationRequest?: { ip: string; userAgent: string; createdByUserId?: number };
   lastSignInRequest?: { ip: string; userAgent: string };
   features?: Record<FEATURE, boolean>;
   limits?: {
