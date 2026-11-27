@@ -1649,10 +1649,17 @@ const assertExpenseStatusUnchanged = (
  */
 const withExpenseLockedForProviderCall = async <T>(expense: Expense, callback: () => Promise<T>): Promise<T> => {
   const expectedStatus = expense.status;
-  return lockExpense(expense.id, async () => {
-    assertExpenseStatusUnchanged(await models.Expense.findByPk(expense.id), expectedStatus, { ownsSoftLock: true });
+  const result = await lockExpense(expense.id, async () => {
+    // Reload so that `expense.data` includes the `isLocked` flag: payment providers write `{ ...expense.data, ... }`
+    // from this instance, which would otherwise release the lock while they are still running.
+    await expense.reload();
+    assertExpenseStatusUnchanged(expense, expectedStatus, { ownsSoftLock: true });
     return callback();
   });
+
+  // `lockExpense` released the lock through another instance
+  await expense.reload();
+  return result;
 };
 
 /**

@@ -7983,12 +7983,16 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
           PayoutMethodId: payoutMethod.id,
         });
 
-        sandbox.stub(paymentProviders.transferwise, 'quoteExpense').resolves({
+        const quote = {
           payOut: 'BANK_TRANSFER',
           paymentOption: { fee: { total: 1 }, sourceCurrency: 'USD', targetCurrency: 'USD', disabled: false },
-        });
-        let concurrentResult;
+        };
+        sandbox.stub(paymentProviders.transferwise, 'quoteExpense').resolves(quote);
+        let concurrentResult, isLockedDuringWiseCall;
         sandbox.stub(paymentProviders.transferwise, 'scheduleExpenseForPayment').callsFake(async expenseInstance => {
+          // Like the real implementation, store the quote by spreading the data of the instance it receives
+          await expenseInstance.update({ data: { ...expenseInstance.data, quote } });
+          isLockedDuringWiseCall = (await models.Expense.findByPk(expense.id)).data?.isLocked;
           // Another admin tries to unapprove while the Wise transfer is being created
           concurrentResult = await graphqlQueryV2(
             processExpenseMutation,
@@ -8005,6 +8009,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(result.errors).to.not.exist;
         expect(result.data.processExpense.status).to.eq('SCHEDULED_FOR_PAYMENT');
 
+        expect(isLockedDuringWiseCall).to.be.true;
         expect(concurrentResult.errors).to.exist;
         expect(concurrentResult.errors[0].message).to.include('currently being processed');
 
