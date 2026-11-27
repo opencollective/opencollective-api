@@ -68,6 +68,14 @@ const connectedAccountMutations = {
           throw new ValidationFailed('This token is already being used');
         }
 
+        // Webhooks and API calls assume a single PayPal payments account per host
+        const existingPaypalAccount = await paypal.getHostPaypalAccount(collective);
+        if (existingPaypalAccount) {
+          throw new ValidationFailed(
+            'This host already has a PayPal account connected. Disconnect it before connecting a new one.',
+          );
+        }
+
         if (args.connectedAccount.service === Service.PAYPAL) {
           try {
             await paypal.validateConnectedAccount(args.connectedAccount);
