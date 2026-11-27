@@ -96,8 +96,8 @@ const vendorMutations = {
       const vendor = models.Collective.build(vendorData);
       await vendor.validate();
 
-      // A new vendor can't own a tax form from our bucket yet: this rejects links to other accounts' tax forms
-      LegalDocument.assertManualDocumentLinkIsAllowed(vendorInfo?.taxFormUrl, vendor);
+      // Validate before making any change: links to the tax forms bucket can't be set manually
+      LegalDocument.assertManualDocumentLinkIsAllowed(vendorInfo?.taxFormUrl);
 
       // Enforce 2FA before making any changes
       if (args.vendor.payoutMethod) {
@@ -198,7 +198,7 @@ const vendorMutations = {
         throw new Unauthorized("You're not authorized to set a vendor visbility for this account");
       }
 
-      LegalDocument.assertManualDocumentLinkIsAllowed(vendorInfo?.taxFormUrl, vendor);
+      LegalDocument.assertManualDocumentLinkIsAllowed(vendorInfo?.taxFormUrl);
 
       // Enforce 2FA before making any changes
       if (args.vendor.payoutMethod) {

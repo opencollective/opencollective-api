@@ -196,54 +196,86 @@ describe('server/models/LegalDocument', () => {
       expect(await build(notDeleted.id).canDownload()).to.be.false; // Must be marked as deleted by the merge
     });
 
-    it('only accepts legacy (pre-2023) keys on old documents', async () => {
+    it('accepts keys without an account ID only on documents created before 2025-01-10', async () => {
       const owner = await fakeCollective();
-      const legacyLink = taxFormUrl(`US_TAX_FORM_2022_Name.pdf`);
-      const build = (createdAt: Date) =>
-        LegalDocument.build({ CollectiveId: owner.id, year: 2022, documentLink: legacyLink, createdAt });
+      const keysWithoutAccountId = [
+        'US_TAX_FORM_2022_Name.pdf', // Pre-2023 format
+        'US_TAX_FORM_2022_A/B.pdf', // Pre-2023 format, with a `/` in the account name
+        'US_TAX_FORM/2023/Jane%20Doe.pdf', // HelloWorks (2023 to Aug 2024)
+        `US_TAX_FORM/2024/Jane%20Doe_${'ab12'.repeat(16)}.pdf`, // Internal system, before 2025-01-09
+        'US_TAX_FORM/2024/Team-2024.pdf', // Name ending with digits, not an account ID
+      ];
 
-      expect(await build(new Date('2022-06-01')).canDownload()).to.be.true;
-      expect(await build(new Date()).canDownload()).to.be.false;
+      for (const key of keysWithoutAccountId) {
+        const build = (createdAt: Date) =>
+          LegalDocument.build({ CollectiveId: owner.id, year: 2024, documentLink: taxFormUrl(key), createdAt });
+        expect(await build(new Date('2024-06-01')).canDownload(), key).to.be.true;
+        expect(await build(new Date('2025-01-09')).canDownload(), key).to.be.true;
+        expect(await build(new Date()).canDownload(), key).to.be.false;
+      }
+
+      // Must still be a tax form from the tax forms bucket
+      const oldDocument = (documentLink: string) =>
+        LegalDocument.build({ CollectiveId: owner.id, year: 2024, documentLink, createdAt: new Date('2024-06-01') });
+      expect(await oldDocument(taxFormUrl('other/file.pdf')).canDownload()).to.be.false;
+      expect(await oldDocument(fakeOpenCollectiveS3URL({ key: 'US_TAX_FORM/2024/Name.pdf' })).canDownload()).to.be
+        .false;
     });
   });
 
   describe('manuallyMarkTaxFormAsReceived', () => {
-    it('rejects links to tax forms that belong to another account', async () => {
+    it('rejects links to the tax forms bucket, even for the payee own tax forms', async () => {
       const user = await fakeUser();
       const payee = await fakeCollective({ type: CollectiveType.VENDOR });
       const victim = await fakeCollective();
       const year = new Date().getFullYear();
-      const foreignLink = fakeOpenCollectiveS3URL({
-        bucket: config.taxForms.aws.s3.bucket,
-        key: `US_TAX_FORM/${year}/Name-${victim.id}.pdf`,
-      });
+      for (const key of [
+        `US_TAX_FORM/${year}/Name-${victim.id}.pdf`,
+        `US_TAX_FORM/${year}/Name-${payee.id}.pdf`,
+        `US_TAX_FORM/2024/Name-${payee.id}.pdf`, // Could match an ID-less key whose name ends with the payee ID
+        'US_TAX_FORM/2024/Jane%20Doe.pdf',
+      ]) {
+        const link = fakeOpenCollectiveS3URL({ bucket: config.taxForms.aws.s3.bucket, key });
+        await expect(LegalDocument.manuallyMarkTaxFormAsReceived(payee, user, link), key).to.be.rejectedWith(
+          'Links to tax forms stored on the platform cannot be set manually',
+        );
+      }
 
-      await expect(LegalDocument.manuallyMarkTaxFormAsReceived(payee, user, foreignLink)).to.be.rejectedWith(
-        'This tax form link does not belong to this account',
-      );
       expect(await LegalDocument.count({ where: { CollectiveId: payee.id } })).to.eq(0);
     });
 
-    it('accepts external links and links to the payee tax forms', async () => {
+    it('does not allow changing the link of an old document to the tax forms bucket', async () => {
+      const user = await fakeUser();
+      const payee = await fakeCollective({ type: CollectiveType.VENDOR });
+      const oldDocument = await fakeLegalDocument({
+        CollectiveId: payee.id,
+        year: 2024,
+        requestStatus: LEGAL_DOCUMENT_REQUEST_STATUS.REQUESTED,
+        createdAt: new Date('2024-06-01'),
+      });
+      const link = fakeOpenCollectiveS3URL({
+        bucket: config.taxForms.aws.s3.bucket,
+        key: 'US_TAX_FORM/2024/Victim.pdf',
+      });
+
+      await expect(LegalDocument.manuallyMarkTaxFormAsReceived(payee, user, link)).to.be.rejectedWith(
+        'Links to tax forms stored on the platform cannot be set manually',
+      );
+      await oldDocument.reload();
+      expect(oldDocument.documentLink).to.be.null;
+      expect(oldDocument.requestStatus).to.eq(LEGAL_DOCUMENT_REQUEST_STATUS.REQUESTED);
+    });
+
+    it('accepts external links', async () => {
       const user = await fakeUser();
       const payee = await fakeCollective({ type: CollectiveType.VENDOR });
       const year = new Date().getFullYear();
 
-      await LegalDocument.manuallyMarkTaxFormAsReceived(payee, user, 'https://drive.google.com/whatever', {
-        year: year - 1,
-      });
-      const externalDoc = await LegalDocument.findOne({ where: { CollectiveId: payee.id, year: year - 1 } });
+      await LegalDocument.manuallyMarkTaxFormAsReceived(payee, user, 'https://drive.google.com/whatever');
+      const externalDoc = await LegalDocument.findOne({ where: { CollectiveId: payee.id, year } });
       expect(externalDoc.documentLink).to.eq('https://drive.google.com/whatever');
+      expect(externalDoc.requestStatus).to.eq(LEGAL_DOCUMENT_REQUEST_STATUS.RECEIVED);
       expect(await externalDoc.canDownload()).to.be.false;
-
-      const ownLink = fakeOpenCollectiveS3URL({
-        bucket: config.taxForms.aws.s3.bucket,
-        key: `US_TAX_FORM/${year}/Name-${payee.id}.pdf`,
-      });
-      await LegalDocument.manuallyMarkTaxFormAsReceived(payee, user, ownLink);
-      const ownDoc = await LegalDocument.findOne({ where: { CollectiveId: payee.id, year } });
-      expect(ownDoc.documentLink).to.eq(ownLink);
-      expect(await ownDoc.canDownload()).to.be.true;
     });
   });
 
