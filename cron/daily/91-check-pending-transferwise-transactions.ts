@@ -27,7 +27,7 @@ async function processExpense(expense: Expense) {
   const transfer = await transferwiseLib.getTransfer(connectedAccount, expense.data.transfer.id);
   if (
     (expense.status === status.PROCESSING && transfer.status === 'outgoing_payment_sent') ||
-    transfer.status === 'funds_refunded'
+    ['funds_refunded', 'cancelled'].includes(transfer.status)
   ) {
     logger.info(`Wise: Transfer updated.`, transfer);
     await handleTransferStateChange({
