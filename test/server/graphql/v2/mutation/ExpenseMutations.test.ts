@@ -9203,6 +9203,27 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       });
     }
 
+    it('keeps changes a webhook makes to the expense while Stripe is called', async () => {
+      const { hostAdmin, expense } = await setupStripeExpense();
+      sandbox.stub(stripe.customers, 'create').resolves({ id: 'cus_test' });
+      sandbox.stub(stripe.paymentIntents, 'create').callsFake(async () => {
+        // A webhook archives another intent while the new one is being created
+        await models.Expense.update(
+          { data: { previousStripePaymentIntents: [{ id: 'pi_from_webhook' } as Stripe.PaymentIntent] } },
+          { where: { id: expense.id } },
+        );
+        // eslint-disable-next-line camelcase
+        return { id: 'pi_new', client_secret: 'cs_new', status: 'requires_payment_method' };
+      });
+
+      const result = await graphqlQueryV2(createPaymentIntentMutation, { expense: expenseRef(expense) }, hostAdmin);
+
+      expect(result.errors).to.not.exist;
+      await expense.reload();
+      expect(expense.data.stripePaymentIntent.id).to.equal('pi_new');
+      expect(expense.data.previousStripePaymentIntents.map(pi => pi.id)).to.include('pi_from_webhook');
+    });
+
     it('cancels archived PaymentIntents that are still live before creating a new one', async () => {
       const { hostAdmin, expense } = await setupStripeExpense();
       await expense.update({

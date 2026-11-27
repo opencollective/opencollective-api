@@ -25,7 +25,7 @@ import RateLimit from '../../../lib/rate-limit';
 import { reportErrorToSentry } from '../../../lib/sentry';
 import stripe, { convertToStripeAmount } from '../../../lib/stripe';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication/lib';
-import models from '../../../models';
+import models, { sequelize } from '../../../models';
 import { CommentType } from '../../../models/Comment';
 import ExpenseModel, { ExpenseLockableFields } from '../../../models/Expense';
 import { checkIsValidBalanceAccountingCategory } from '../../common/balance-accounting-categories';
@@ -897,6 +897,18 @@ const expenseMutations = {
 
       const isPlatformHost = payeeHostStripeAccount.username === config.stripe.accountId;
       const stripeRequestOptions = !isPlatformHost ? { stripeAccount: payeeHostStripeAccount.username } : undefined;
+      // Stripe calls happen between reads and writes here, and webhooks update the same `data` concurrently:
+      // always write from a fresh copy, under the expense row lock that the webhook handlers also take.
+      const updateExpenseData = (getData: (data: ExpenseModel['data']) => ExpenseModel['data']) =>
+        sequelize.transaction(async transaction => {
+          const lockedExpense = await models.Expense.findByPk(expense.id, {
+            transaction,
+            lock: transaction.LOCK.UPDATE,
+          });
+          await lockedExpense.update({ data: getData(lockedExpense.data ?? {}) }, { transaction });
+          expense.data = lockedExpense.data;
+        });
+
       const cancellableStatuses = [
         'requires_payment_method',
         'requires_confirmation',
@@ -940,15 +952,11 @@ const expenseMutations = {
           ? await stripe.paymentIntents.cancel(stripePaymentIntent.id, undefined, stripeRequestOptions)
           : stripePaymentIntent;
 
-        await expense.update({
-          data: {
-            ...omit(expense.data, ['stripePaymentIntent']),
-            previousStripePaymentIntents: [
-              ...(expense.data.previousStripePaymentIntents ?? []),
-              archivedStripePaymentIntent,
-            ],
-          },
-        });
+        await updateExpenseData(data => ({
+          // A webhook may have made another intent current in the meantime: only detach the one we cancelled
+          ...(data.stripePaymentIntent?.id === stripePaymentIntent.id ? omit(data, ['stripePaymentIntent']) : data),
+          previousStripePaymentIntents: [...(data.previousStripePaymentIntents ?? []), archivedStripePaymentIntent],
+        }));
       }
 
       const refreshedStripePaymentIntents = new Map<string, Stripe.PaymentIntent>();
@@ -974,14 +982,12 @@ const expenseMutations = {
 
       // Store the up-to-date statuses, so that terminal intents are skipped on the next call
       if (refreshedStripePaymentIntents.size > 0) {
-        await expense.update({
-          data: {
-            ...expense.data,
-            previousStripePaymentIntents: expense.data.previousStripePaymentIntents.map(
-              pi => refreshedStripePaymentIntents.get(pi?.id) ?? pi,
-            ),
-          },
-        });
+        await updateExpenseData(data => ({
+          ...data,
+          previousStripePaymentIntents: (data.previousStripePaymentIntents ?? []).map(
+            pi => refreshedStripePaymentIntents.get(pi?.id) ?? pi,
+          ),
+        }));
       }
 
       let stripeCustomerAccount = await payer.getCustomerStripeAccount(payeeHostStripeAccount.username);
@@ -1033,11 +1039,17 @@ const expenseMutations = {
             : undefined,
         );
 
-        await expense.update({
-          data: {
-            ...expense.data,
-            stripePaymentIntent: stripePaymentIntent,
-          },
+        await updateExpenseData(data => {
+          // Keep any intent a webhook made current in the meantime in the history, so it can still be resolved
+          const current = data.stripePaymentIntent;
+          const replacesCurrent = current?.id && current.id !== stripePaymentIntent.id;
+          return {
+            ...data,
+            previousStripePaymentIntents: replacesCurrent
+              ? [...(data.previousStripePaymentIntents ?? []), current]
+              : data.previousStripePaymentIntents,
+            stripePaymentIntent,
+          };
         });
 
         return {
