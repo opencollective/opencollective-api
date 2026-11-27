@@ -12,7 +12,7 @@
 
 import '../../server/env';
 
-import { Command } from 'commander';
+import { Command, InvalidArgumentError } from 'commander';
 
 import { CRON_NAME } from '../../cron/daily/83-notify-contributors-missing-info';
 import { getYearsToProcess, notifyContributorsMissingInfo } from '../../server/lib/contributor-info-notify';
@@ -23,6 +23,18 @@ import { Collective } from '../../server/models';
 const DRY_RUN = process.env.DRY_RUN !== 'false';
 
 const collect = (value: string, previous: string[]) => [...previous, value];
+
+/** Rejects malformed numbers: a `NaN` limit would never stop the run */
+const parseInteger =
+  (name: string, min: number, max = Number.MAX_SAFE_INTEGER) =>
+  (value: string): number => {
+    const parsed = Number(value);
+    if (!/^\d+$/.test(value) || parsed < min || parsed > max) {
+      const range = max === Number.MAX_SAFE_INTEGER ? `of at least ${min}` : `between ${min} and ${max}`;
+      throw new InvalidArgumentError(`${name} must be an integer ${range}`);
+    }
+    return parsed;
+  };
 
 const getIdsFromSlugs = async (slugs: string[]): Promise<number[]> => {
   if (!slugs.length) {
@@ -41,8 +53,8 @@ const getIdsFromSlugs = async (slugs: string[]): Promise<number[]> => {
 const program = new Command()
   .option('--host <slug>', 'Only this host (repeatable)', collect, [])
   .option('--profile <slug>', 'Only this contributor profile (repeatable)', collect, [])
-  .option('--year <yyyy>', 'Year to process (default: same years as the cron)', value => parseInt(value))
-  .option('--limit <n>', 'Max recipients', value => parseInt(value))
+  .option('--year <yyyy>', 'Year to process (default: same years as the cron)', parseInteger('--year', 2000, 2100))
+  .option('--limit <n>', 'Max recipients', parseInteger('--limit', 1))
   .option('--all', 'Allow a live run on all hosts and profiles without --limit')
   .option('--ignore-dedup', 'Send even if already requested (requires --profile)')
   .option('--json', 'Print the full report as JSON');
