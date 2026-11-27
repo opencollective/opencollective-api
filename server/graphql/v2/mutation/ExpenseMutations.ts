@@ -13,6 +13,7 @@ import {
 } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 import { groupBy, isNil, omit, pick, size, uniq } from 'lodash';
+import type Stripe from 'stripe';
 import { v4 as uuid } from 'uuid';
 
 import ActivityTypes from '../../../constants/activities';
@@ -934,33 +935,53 @@ const expenseMutations = {
 
         // The stored intent is outdated (e.g. the expense amount changed): cancel it so that only one
         // intent can be confirmed for this expense.
-        if (cancellableStatuses.includes(stripePaymentIntent.status)) {
-          await stripe.paymentIntents.cancel(stripePaymentIntent.id, undefined, stripeRequestOptions);
-        }
+        // Archive the intent as cancelled, so it isn't fetched again on the next call.
+        const archivedStripePaymentIntent = cancellableStatuses.includes(stripePaymentIntent.status)
+          ? await stripe.paymentIntents.cancel(stripePaymentIntent.id, undefined, stripeRequestOptions)
+          : stripePaymentIntent;
 
         await expense.update({
           data: {
             ...omit(expense.data, ['stripePaymentIntent']),
-            previousStripePaymentIntents: [...(expense.data.previousStripePaymentIntents ?? []), stripePaymentIntent],
+            previousStripePaymentIntents: [
+              ...(expense.data.previousStripePaymentIntents ?? []),
+              archivedStripePaymentIntent,
+            ],
           },
         });
       }
 
+      const refreshedStripePaymentIntents = new Map<string, Stripe.PaymentIntent>();
       for (const archivedStripePaymentIntentId of archivedStripePaymentIntentIds) {
         try {
           const archivedStripePaymentIntent = await stripe.paymentIntents.retrieve(
             archivedStripePaymentIntentId,
             stripeRequestOptions,
           );
-          if (cancellableStatuses.includes(archivedStripePaymentIntent.status)) {
-            await stripe.paymentIntents.cancel(archivedStripePaymentIntentId, undefined, stripeRequestOptions);
-          }
+          refreshedStripePaymentIntents.set(
+            archivedStripePaymentIntentId,
+            cancellableStatuses.includes(archivedStripePaymentIntent.status)
+              ? await stripe.paymentIntents.cancel(archivedStripePaymentIntentId, undefined, stripeRequestOptions)
+              : archivedStripePaymentIntent,
+          );
         } catch (e) {
           // Don't block the payment (e.g. intent on a Stripe account the host no longer uses). The webhook
           // still refuses to record a second payment for the expense if this intent ever succeeds.
           logger.warn(`Could not cancel archived payment intent ${archivedStripePaymentIntentId}: ${e.message}`);
           reportErrorToSentry(e, { req, extra: { expenseId: expense.id, archivedStripePaymentIntentId } });
         }
+      }
+
+      // Store the up-to-date statuses, so that terminal intents are skipped on the next call
+      if (refreshedStripePaymentIntents.size > 0) {
+        await expense.update({
+          data: {
+            ...expense.data,
+            previousStripePaymentIntents: expense.data.previousStripePaymentIntents.map(
+              pi => refreshedStripePaymentIntents.get(pi?.id) ?? pi,
+            ),
+          },
+        });
       }
 
       let stripeCustomerAccount = await payer.getCustomerStripeAccount(payeeHostStripeAccount.username);

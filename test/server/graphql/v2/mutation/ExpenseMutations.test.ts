@@ -9216,7 +9216,9 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       const retrieveStub = sandbox
         .stub(stripe.paymentIntents, 'retrieve')
         .resolves({ id: 'pi_declined', amount: 1000, currency: 'usd', status: 'requires_payment_method' });
-      const cancelStub = sandbox.stub(stripe.paymentIntents, 'cancel').resolves({ id: 'pi_declined' });
+      const cancelStub = sandbox
+        .stub(stripe.paymentIntents, 'cancel')
+        .resolves({ id: 'pi_declined', status: 'canceled' });
       sandbox.stub(stripe.customers, 'create').resolves({ id: 'cus_test' });
       sandbox
         .stub(stripe.paymentIntents, 'create')
@@ -9230,6 +9232,12 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       expect(retrieveStub.calledOnce).to.be.true; // succeeded intents are not checked again
       expect(cancelStub.calledOnce).to.be.true;
       expect(cancelStub.firstCall.args[0]).to.equal('pi_declined');
+
+      // The cancellation is stored, so the intent is not fetched again on the next call
+      await expense.reload();
+      const archivedStatuses = expense.data.previousStripePaymentIntents.map(pi => [pi.id, pi.status]);
+      expect(archivedStatuses).to.deep.include(['pi_declined', 'canceled']);
+      expect(archivedStatuses).to.deep.include(['pi_done', 'succeeded']);
     });
 
     it('cancels the stored PaymentIntent before creating a new one when it no longer matches the expense', async () => {
@@ -9242,7 +9250,9 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         currency: 'usd',
         status: 'requires_payment_method',
       });
-      const cancelStub = sandbox.stub(stripe.paymentIntents, 'cancel').resolves({ id: 'pi_outdated' });
+      const cancelStub = sandbox
+        .stub(stripe.paymentIntents, 'cancel')
+        .resolves({ id: 'pi_outdated', status: 'canceled' });
       sandbox.stub(stripe.customers, 'create').resolves({ id: 'cus_test' });
       sandbox
         .stub(stripe.paymentIntents, 'create')
@@ -9258,7 +9268,10 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
 
       await expense.reload();
       expect(expense.data.stripePaymentIntent.id).to.equal('pi_new');
-      expect(expense.data.previousStripePaymentIntents.map(pi => pi.id)).to.include('pi_outdated');
+      expect(expense.data.previousStripePaymentIntents.map(pi => [pi.id, pi.status])).to.deep.include([
+        'pi_outdated',
+        'canceled',
+      ]);
     });
   });
 });
