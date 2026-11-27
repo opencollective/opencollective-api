@@ -220,8 +220,13 @@ jobs:
           retention-days: 1
           overwrite: true
 
+  # Set the repository variable `DISABLE_CYPRESS` to `true` (Settings > Secrets and variables > Actions >
+  # Variables) to skip the Cypress shards while the specs stay in the frontend. Remove the shard checks from the
+  # required checks first: a skipped matrix reports one unexpanded check, so the per-shard required checks would
+  # wait forever. The `playwright` job below is unaffected.
   e2e:
     name: e2e (${{ matrix.files }})
+    if: ${{ vars.DISABLE_CYPRESS != 'true' }}
     needs: prepare
     runs-on: ubuntu-26.04
     timeout-minutes: 30
