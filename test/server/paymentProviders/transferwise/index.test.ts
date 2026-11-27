@@ -350,6 +350,31 @@ describe('server/paymentProviders/transferwise/index', () => {
       );
     });
 
+    it('should throw and cancel the transfer if Wise rejects the funding', async () => {
+      const rejectedExpense = await fakeExpense({
+        payoutMethod: 'transferwise',
+        status: 'PENDING',
+        amount: 10000,
+        CollectiveId: host.id,
+        currency: 'USD',
+        FromCollectiveId: payoutMethod.id,
+        type: 'INVOICE',
+      });
+
+      // Wise answers with a success HTTP status and `status: 'REJECTED'` when it refuses to fund the transfer
+      fundTransfer.resolves({ status: 'REJECTED', errorCode: 'balance.insufficient-funds' });
+      cancelTransfer.resetHistory();
+
+      try {
+        await expect(transferwise.payExpense(connectedAccount, payoutMethod, rejectedExpense))
+          .to.be.rejectedWith(TransferwiseError, 'balance.insufficient-funds')
+          .and.eventually.have.nested.property('extensions.code', 'transferwise.error.balance.insufficient-funds');
+        expect(cancelTransfer).to.have.been.calledOnceWith(connectedAccount, 123);
+      } finally {
+        fundTransfer.resolves({ status: 'COMPLETED' });
+      }
+    });
+
     describe('payment outcome metrics', () => {
       let metricsSandbox, metricsCountStub;
 
@@ -431,13 +456,16 @@ describe('server/paymentProviders/transferwise/index', () => {
         }
       });
 
-      it('records the failure metric even when cancelling the transfer fails', async () => {
+      it('records the failure metric and rethrows the funding error even when cancelling the transfer fails', async () => {
         const wiseExpense = await fakeWiseExpense();
         fundTransfer.rejects(new Error('Funding exploded'));
         cancelTransfer.rejects(new Error('Cancel exploded'));
 
         try {
-          await expect(transferwise.payExpense(connectedAccount, payoutMethod, wiseExpense)).to.be.rejected;
+          await expect(transferwise.payExpense(connectedAccount, payoutMethod, wiseExpense)).to.be.rejectedWith(
+            'Funding exploded',
+          );
+          expect(cancelTransfer).to.have.been.called;
 
           expect(metricsCountStub).to.have.been.calledOnce;
           expect(metricsCountStub.firstCall.args).to.deep.equal([

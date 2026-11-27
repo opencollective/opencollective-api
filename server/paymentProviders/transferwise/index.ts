@@ -28,12 +28,14 @@ import activities from '../../constants/activities';
 import { Service } from '../../constants/connected-account';
 import { SupportedCurrency } from '../../constants/currencies';
 import status from '../../constants/expense-status';
+import FEATURE from '../../constants/feature';
 import { Forbidden, TransferwiseError, ValidationFailed } from '../../graphql/errors';
 import { applyBalanceAccountingCategoryFromConnectedAccount } from '../../lib/accounting/categorization/balance-accounts';
 import cache, { sessionCache } from '../../lib/cache';
 import { centsAmountToFloat, getFxRate } from '../../lib/currency';
 import logger from '../../lib/logger';
 import { safeJsonStringify, sanitizeObjectForJSON } from '../../lib/safe-json-stringify';
+import { reportErrorToSentry } from '../../lib/sentry';
 import {
   mapErrorToType,
   MetricEvent,
@@ -412,6 +414,14 @@ async function payExpense(
       transferId: transfer.id,
     });
 
+    // Wise answers with a success HTTP status and `status: 'REJECTED'` when it refuses to fund the transfer
+    if (fund?.status === 'REJECTED') {
+      throw new TransferwiseError(
+        `The transfer could not be funded (${fund.errorCode || 'unknown error'})`,
+        fund.errorCode ? `transferwise.error.${fund.errorCode}` : null,
+      );
+    }
+
     // Simulate transfer success in other environments so transactions don't get stuck.
     if (['development', 'staging'].includes(config.env)) {
       const response = await transferwise.simulateTransferSuccess(connectedAccount, transfer.id);
@@ -453,7 +463,16 @@ async function payExpense(
       errorType: mapErrorToType(e),
     });
 
-    await transferwise.cancelTransfer(connectedAccount, transfer.id);
+    // Cancel the unfunded transfer, without letting a cancel failure mask the original funding error
+    try {
+      await transferwise.cancelTransfer(connectedAccount, transfer.id);
+    } catch (cancelError) {
+      logger.error(`Wise: Error cancelling transfer ${transfer.id} for expense ${expense.id}`, cancelError);
+      reportErrorToSentry(cancelError, {
+        feature: FEATURE.TRANSFERWISE,
+        extra: { expenseId: expense.id, transferId: transfer.id, originalError: e?.message },
+      });
+    }
 
     throw e;
   }
