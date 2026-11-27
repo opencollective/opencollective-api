@@ -7806,6 +7806,74 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       });
     });
 
+    describe('UNSCHEDULE_PAYMENT', () => {
+      let sandbox, wiseHost, wiseHostAdmin, wiseCollective;
+
+      before(async () => {
+        wiseHostAdmin = await fakeUser();
+        wiseHost = await fakeActiveHost({
+          admin: wiseHostAdmin.collective,
+          currency: 'USD',
+        });
+        await fakePlatformSubscription({
+          CollectiveId: wiseHost.id,
+          plan: { features: { [FEATURE.TRANSFERWISE]: true } },
+        });
+        wiseCollective = await fakeCollective({ HostCollectiveId: wiseHost.id, currency: 'USD' });
+        await wiseHostAdmin.populateRoles();
+      });
+
+      beforeEach(() => {
+        sandbox = createSandbox();
+      });
+
+      afterEach(() => {
+        sandbox.restore();
+      });
+
+      it('unschedules a Wise expense, whose status is reset by the provider', async () => {
+        const payoutMethod = await fakePayoutMethod({ type: PayoutMethodTypes.BANK_ACCOUNT });
+        const expense = await fakeExpense({
+          CollectiveId: wiseCollective.id,
+          status: 'SCHEDULED_FOR_PAYMENT',
+          PayoutMethodId: payoutMethod.id,
+          data: { batchGroup: { id: 'fake-batch-group' } },
+        });
+
+        // Like the real implementation, reset the status of every expense in the batch through other instances
+        const unscheduleStub = sandbox
+          .stub(paymentProviders.transferwise, 'unscheduleExpenseForPayment')
+          .callsFake(async () => {
+            await models.Expense.update({ status: 'APPROVED', data: {} }, { where: { id: expense.id } });
+          });
+
+        const mutationParams = { expenseId: expense.id, action: 'UNSCHEDULE_PAYMENT' };
+        const result = await graphqlQueryV2(processExpenseMutation, mutationParams, wiseHostAdmin);
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.processExpense.status).to.eq('APPROVED');
+        expect(unscheduleStub.calledOnce).to.be.true;
+        await expense.reload();
+        expect(expense.status).to.eq('APPROVED');
+        expect(expense.lastEditedById).to.eq(wiseHostAdmin.id);
+      });
+
+      it('unschedules a non-Wise expense', async () => {
+        const payoutMethod = await fakePayoutMethod({ type: PayoutMethodTypes.OTHER });
+        const expense = await fakeExpense({
+          CollectiveId: wiseCollective.id,
+          status: 'SCHEDULED_FOR_PAYMENT',
+          PayoutMethodId: payoutMethod.id,
+        });
+
+        const mutationParams = { expenseId: expense.id, action: 'UNSCHEDULE_PAYMENT' };
+        const result = await graphqlQueryV2(processExpenseMutation, mutationParams, wiseHostAdmin);
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.processExpense.status).to.eq('APPROVED');
+      });
+    });
+
     describe('MARK_AS_INCOMPLETE', () => {
       let sandbox, emailSendMessageSpy;
 

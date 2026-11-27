@@ -2011,6 +2011,9 @@ export const unscheduleExpensePayment = async (req: express.Request, expense: Ex
     const host = await loadHostForExpense(req, expense);
     await checkFeatureAccess(host, FEATURE.TRANSFERWISE, { loaders: req.loaders });
     await paymentProviders.transferwise.unscheduleExpenseForPayment(expense);
+    // The Wise provider moves every expense of the canceled batch (including this one) back to APPROVED
+    // through other instances, so refresh ours before the locked status check below.
+    await expense.reload();
   }
 
   const updatedExpense = await updateExpenseStatusWithLock(expense, {
