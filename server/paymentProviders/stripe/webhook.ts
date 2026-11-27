@@ -899,40 +899,53 @@ const handleOrderPaymentIntentFailed = async (event: Stripe.Event) => {
 
 async function handleExpensePaymentIntentFailed(event: Stripe.Event) {
   const stripePaymentIntent = event.data.object as Stripe.PaymentIntent;
-  const expense = await findExpenseForStripePaymentIntent(stripePaymentIntent, event.account, {
-    include: [
-      { association: 'collective', required: true },
-      { association: 'fromCollective', required: true },
-    ],
-  });
-
-  if (!expense) {
-    reportMessageToSentry(`Stripe Webhook: Could not find Expense for Payment Intent ${stripePaymentIntent.id}`, {
-      extra: { event },
-    });
-    return;
-  }
-
   const charge = getPaymentIntentCharge(stripePaymentIntent);
   const reason = stripePaymentIntent.last_payment_error?.message || charge?.failure_message || 'unknown';
-  logger.info(`Stripe Webook: Payment Intent failed for Expense #${expense.id}. Reason: ${reason}`);
 
-  const isCurrentPaymentIntent = expense.data?.stripePaymentIntent?.id === stripePaymentIntent.id;
-  const isTerminalFailure = isCurrentPaymentIntent && expense.status === ExpenseStatus.PROCESSING;
-  if (isTerminalFailure) {
-    await expense.update({
-      status: ExpenseStatus.ERROR,
-      data: {
-        ...omit(expense.data, ['stripePaymentIntent']),
-        previousStripePaymentIntents: [...(expense.data.previousStripePaymentIntents ?? []), stripePaymentIntent],
-      },
+  // Lock the expense: the webhook lock is per payment intent, so a success for another intent of the same
+  // expense can be handled concurrently, and a failure must never overwrite a recorded payment.
+  const [expense, isTerminalFailure] = await sequelize.transaction(async transaction => {
+    const expense = await findExpenseForStripePaymentIntent(stripePaymentIntent, event.account, {
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+      include: [
+        { association: 'collective', required: true },
+        { association: 'fromCollective', required: true },
+      ],
     });
-  } else if (isCurrentPaymentIntent) {
-    // The payment failed straight away (e.g. card declined): the intent goes back to `requires_payment_method`
-    // and the payer can retry it with another card. Keep it as the current intent so the retry is recorded
-    // and `createExpenseStripePaymentIntent` reuses it instead of opening a second live intent.
-    await expense.update({ data: { ...expense.data, stripePaymentIntent } });
-  }
+
+    if (!expense) {
+      reportMessageToSentry(`Stripe Webhook: Could not find Expense for Payment Intent ${stripePaymentIntent.id}`, {
+        extra: { event },
+      });
+      return [null, false];
+    }
+
+    logger.info(`Stripe Webook: Payment Intent failed for Expense #${expense.id}. Reason: ${reason}`);
+
+    const isCurrentPaymentIntent = expense.data?.stripePaymentIntent?.id === stripePaymentIntent.id;
+    if (!isCurrentPaymentIntent || expense.status === ExpenseStatus.PAID) {
+      return [expense, false];
+    } else if (expense.status === ExpenseStatus.PROCESSING) {
+      await expense.update(
+        {
+          status: ExpenseStatus.ERROR,
+          data: {
+            ...omit(expense.data, ['stripePaymentIntent']),
+            previousStripePaymentIntents: [...(expense.data.previousStripePaymentIntents ?? []), stripePaymentIntent],
+          },
+        },
+        { transaction },
+      );
+      return [expense, true];
+    } else {
+      // The payment failed straight away (e.g. card declined): the intent goes back to `requires_payment_method`
+      // and the payer can retry it with another card. Keep it as the current intent so the retry is recorded
+      // and `createExpenseStripePaymentIntent` reuses it instead of opening a second live intent.
+      await expense.update({ data: { ...expense.data, stripePaymentIntent } }, { transaction });
+      return [expense, false];
+    }
+  });
 
   // Terminal failure of the payout attempt: counted only when the expense transitions to ERROR, so
   // redeliveries and failures arriving for already-settled expenses are not counted twice.

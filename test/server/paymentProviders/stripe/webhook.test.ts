@@ -1641,6 +1641,18 @@ describe('webhook', () => {
         expect(metricsCountStub.called).to.be.false;
       });
 
+      it('does not move a paid expense to ERROR on a late failure event', async () => {
+        await webhook.stripePaymentIntentProcessing(event);
+        await expense.reload();
+        await expense.update({ status: ExpenseStatuses.PAID });
+
+        await webhook.stripePaymentIntentFailed(event);
+
+        await expense.reload();
+        expect(expense.status).to.eql(ExpenseStatuses.PAID);
+        expect(metricsCountStub.called).to.be.false;
+      });
+
       it('keeps the payment intent as current when payment failed immediately, so it can be retried', async () => {
         await webhook.stripePaymentIntentFailed(event);
 
