@@ -343,15 +343,20 @@ describe('server/controllers/transferwise', () => {
       });
 
       it('does not count a batch that failed to be paid', async () => {
-        payExpensesBatchGroup.rejects(new Error('Wise is down'));
+        // A 2FA code opens the session: the count starts at 0
         req.headers[TwoFactorAuthenticationHeader] = `totp ${generateSync({ secret })}`;
-        await expense.update({ amount: 400_00 });
+        await transferwiseController.payBatch(req, res);
+        expect(res.status.called).to.be.false;
+        delete req.headers[TwoFactorAuthenticationHeader];
+
+        // Within the session, a 400 batch is counted, then fails
+        payExpensesBatchGroup.rejects(new Error('Wise is down'));
+        await expense.update({ status: expenseStatus.SCHEDULED_FOR_PAYMENT, amount: 400_00 });
         await transferwiseController.payBatch(req, res);
         expect(res.status.firstCall.firstArg).to.equal(500);
 
-        // The failed 400 is not counted, so another 400 still fits in the 500 limit
+        // The failed 400 was released, so another 400 still fits in the 500 limit without a new code
         payExpensesBatchGroup.resolves({ status: 'COMPLETED' });
-        delete req.headers[TwoFactorAuthenticationHeader];
         res.status.resetHistory();
         await transferwiseController.payBatch(req, res);
         expect(res.status.called).to.be.false;

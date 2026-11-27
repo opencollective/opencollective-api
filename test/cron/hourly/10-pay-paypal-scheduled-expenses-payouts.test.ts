@@ -62,7 +62,7 @@ describe('cron/hourly/10-pay-paypal-scheduled-expenses-payouts', () => {
   const fakeScheduledExpense = async (
     collective,
     scheduledBy,
-    { justScheduled = false, ...expenseData }: { justScheduled?: boolean; type?: string } = {},
+    { justScheduled = false, ...expenseData }: { justScheduled?: boolean; type?: string; feesPayer?: string } = {},
   ) => {
     const payoutMethod = await fakePaypalPayoutMethod();
     const expense = await fakeExpense({
@@ -176,6 +176,39 @@ describe('cron/hourly/10-pay-paypal-scheduled-expenses-payouts', () => {
     expect(expenses[2].status).to.eq(status.APPROVED);
     const activity = await getUnscheduledActivity(expenses[2]);
     expect(activity.data.message).to.eq('The collective does not have enough funds to pay this expense anymore');
+  });
+
+  it('counts the PayPal fee the collective pays when checking the balance', async () => {
+    // A $100 payout with a $2 fee (2%) paid by the collective needs $102
+    const { hostAdmin: shortAdmin, collective: shortCollective } = await fakeHostAndCollective({ balance: 101_00 });
+    const notCovered = await fakeScheduledExpense(shortCollective, shortAdmin, { feesPayer: 'COLLECTIVE' });
+    const { hostAdmin, collective } = await fakeHostAndCollective({ balance: 102_00 });
+    const covered = await fakeScheduledExpense(collective, hostAdmin, { feesPayer: 'COLLECTIVE' });
+
+    await payPaypalScheduledExpenses();
+
+    expect(getPaidExpenseIds()).to.deep.eq([covered.id]);
+    await notCovered.reload();
+    expect(notCovered.status).to.eq(status.APPROVED);
+  });
+
+  it('checks the admin recorded with the current scheduling, not an older scheduling activity', async () => {
+    const { host, hostAdmin, collective } = await fakeHostAndCollective();
+    const removedAdmin = await fakeUser();
+    await host.addUserWithRole(removedAdmin, MemberRoles.ADMIN);
+    // An older scheduling by a current admin, then the current one by an admin who has been removed since
+    const expense = await fakeScheduledExpense(collective, hostAdmin);
+    await expense.update({ data: { ...expense.data, scheduledForPaymentByUserId: removedAdmin.id } });
+    await sequelize.query(`UPDATE "Expenses" SET "updatedAt" = NOW() - INTERVAL '1 hour' WHERE "id" = :id`, {
+      replacements: { id: expense.id },
+    });
+    await models.Member.destroy({ where: { MemberCollectiveId: removedAdmin.CollectiveId, CollectiveId: host.id } });
+
+    await payPaypalScheduledExpenses();
+
+    expect(payExpensesBatch.called).to.be.false;
+    await expense.reload();
+    expect(expense.status).to.eq(status.APPROVED);
   });
 
   it('leaves alone a payout scheduled seconds ago that has no record yet of who scheduled it', async () => {

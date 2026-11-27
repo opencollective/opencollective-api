@@ -2091,7 +2091,13 @@ export const scheduleExpenseForPayment = async (
 
       result = await updateExpenseStatusWithLock(
         expense,
-        { status: 'SCHEDULED_FOR_PAYMENT', lastEditedById: req.remoteUser.id, onHold: false },
+        {
+          status: 'SCHEDULED_FOR_PAYMENT',
+          lastEditedById: req.remoteUser.id,
+          onHold: false,
+          // Recorded in the same write as the status: the PayPal payout cron checks that this admin can still pay
+          data: { ...expense.data, scheduledForPaymentByUserId: req.remoteUser.id },
+        },
         { expectedStatus: statusBeforeScheduling, ownsSoftLock: true },
       );
     } catch (error) {

@@ -771,6 +771,7 @@ describe('server/paymentProviders/transferwise/index', () => {
 
     it('should refuse an OTT token used by another user than the one who started the payment', async () => {
       const otherUser = await fakeUser();
+      const fundCallsBefore = fundBatchGroup.callCount;
       const call = transferwise.approveExpenseBatchGroupPayment({
         host,
         expenses: [expense],
@@ -780,11 +781,12 @@ describe('server/paymentProviders/transferwise/index', () => {
       await expect(call).to.be.eventually.rejectedWith(
         'This batch payment can only be approved by the admin who started it',
       );
-      expect(fundBatchGroup.callCount).to.be.equal(2);
+      expect(fundBatchGroup.callCount).to.be.equal(fundCallsBefore);
     });
 
     it('should refuse an OTT token used for other expenses than the ones of the batch', async () => {
       const otherExpense = await fakeExpense({ CollectiveId: collective.id, status: 'SCHEDULED_FOR_PAYMENT' });
+      const fundCallsBefore = fundBatchGroup.callCount;
       for (const expenses of [[otherExpense], [expense, otherExpense], []]) {
         const call = transferwise.approveExpenseBatchGroupPayment({
           host,
@@ -794,7 +796,7 @@ describe('server/paymentProviders/transferwise/index', () => {
         });
         await expect(call).to.be.eventually.rejectedWith('The expenses do not match the batch payment being approved');
       }
-      expect(fundBatchGroup.callCount).to.be.equal(2);
+      expect(fundBatchGroup.callCount).to.be.equal(fundCallsBefore);
     });
 
     it('should retry batchGroup if OTT token is provided', async () => {

@@ -105,16 +105,21 @@ export const checkScheduledPayoutsBeforePaying = async (
 
   const stillAuthorized: Expense[] = [];
   for (const expense of expenses.filter(e => stillScheduledIds.has(e.id))) {
-    // Scheduling sets the status first, then records the activity that says who scheduled the payout
+    // Scheduling records who scheduled the payout in the same write as the status. Payouts scheduled before that
+    // was recorded fall back to the last scheduling activity, which is written right after the status.
     const isBeingScheduled = Date.now() - new Date(expense.updatedAt).getTime() < SCHEDULING_GRACE_PERIOD_MS;
-    const scheduledActivity = await models.Activity.findOne({
-      where: { ExpenseId: expense.id, type: activities.COLLECTIVE_EXPENSE_SCHEDULED_FOR_PAYMENT },
-      order: [
-        ['createdAt', 'DESC'],
-        ['id', 'DESC'],
-      ],
-    });
-    const scheduledBy = scheduledActivity?.UserId && (await models.User.findByPk(scheduledActivity.UserId));
+    let scheduledByUserId = expense.data?.scheduledForPaymentByUserId as number | undefined;
+    if (!scheduledByUserId) {
+      const scheduledActivity = await models.Activity.findOne({
+        where: { ExpenseId: expense.id, type: activities.COLLECTIVE_EXPENSE_SCHEDULED_FOR_PAYMENT },
+        order: [
+          ['createdAt', 'DESC'],
+          ['id', 'DESC'],
+        ],
+      });
+      scheduledByUserId = scheduledActivity?.UserId;
+    }
+    const scheduledBy = scheduledByUserId && (await models.User.findByPk(scheduledByUserId));
     if (!scheduledBy) {
       if (!isBeingScheduled) {
         await unschedulePayout(expense, 'Could not find the admin who scheduled this payout');
@@ -138,22 +143,30 @@ export const checkScheduledPayoutsBeforePaying = async (
     [ExpenseType.SETTLEMENT, ExpenseType.PLATFORM_BILLING].includes(e.type),
   );
 
-  // The balance with blocked funds already sets aside every expense scheduled for payment, these ones included: what
-  // is available for them is that balance plus their own amounts. They are paid in the order they were created.
+  // The balance with blocked funds already sets aside every expense scheduled for payment, these ones included, but
+  // only their amounts: what is available for them is that balance plus their own amounts. Each one needs its amount
+  // plus the PayPal fee when the collective pays it, like when scheduling (see `checkHasBalanceToPayExpense`). They
+  // are paid in the order they were created.
   const toPay: Expense[] = [...withoutBalanceCheck];
   const byCollective = Object.values(groupBy(withBalanceCheck, 'CollectiveId'));
   for (const collectiveExpenses of byCollective) {
     const collective = collectiveExpenses[0].collective || (await collectiveExpenses[0].getCollective());
     const amountsInCollectiveCurrency = new Map<number, number>();
+    const neededInCollectiveCurrency = new Map<number, number>();
     for (const expense of collectiveExpenses) {
       const fxRate = await getFxRate(expense.currency, collective.currency);
+      const fee = expense.feesPayer === 'PAYEE' ? 0 : await estimatePaypalPayoutFeeInExpenseCurrency(host, expense);
       amountsInCollectiveCurrency.set(expense.id, roundCentsAmount(expense.amount * fxRate, collective.currency));
+      neededInCollectiveCurrency.set(
+        expense.id,
+        roundCentsAmount((expense.amount + fee) * fxRate, collective.currency),
+      );
     }
 
     const balanceWithBlockedFunds = await collective.getBalanceWithBlockedFunds();
     let available = balanceWithBlockedFunds + sum([...amountsInCollectiveCurrency.values()]);
     for (const expense of sortBy(collectiveExpenses, 'id')) {
-      const amount = amountsInCollectiveCurrency.get(expense.id);
+      const amount = neededInCollectiveCurrency.get(expense.id);
       if (amount > available) {
         await unschedulePayout(expense, 'The collective does not have enough funds to pay this expense anymore');
       } else {
