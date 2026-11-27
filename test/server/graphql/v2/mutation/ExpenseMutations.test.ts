@@ -440,6 +440,22 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       expect(result.errors[0].message).to.eq('Expenses can only be submitted to active entities.');
     });
 
+    it('fails if the collective has been archived (deactivatedAt set)', async () => {
+      const user = await fakeUser();
+      const host = await fakeActiveHost();
+      // Even if `isActive` was left to true, an archived account must not receive expenses
+      const collective = await fakeCollective({ HostCollectiveId: host.id, deactivatedAt: new Date() });
+      const expenseData = { ...getValidExpenseData(), payee: { legacyId: user.CollectiveId } };
+      const result = await graphqlQueryV2(
+        createExpenseMutation,
+        { expense: expenseData, account: { legacyId: collective.id } },
+        user,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.eq('Expenses cannot be submitted to archived accounts.');
+    });
+
     it('fails if the event is archived', async () => {
       const user = await fakeUser();
       const event = await fakeEvent({ isActive: false });

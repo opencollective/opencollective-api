@@ -173,6 +173,10 @@ const checkMultiCurrencyExpense = async (collective, req: Express.Request): Prom
 };
 
 const checkCanReceiveGrants = async (collective, req: Express.Request) => {
+  if (collective.deactivatedAt) {
+    return FEATURE_STATUS.DISABLED; // Archived accounts cannot receive grants
+  }
+
   const supportedTypes = await getSupportedExpenseTypes(collective, { loaders: req.loaders });
   if (!supportedTypes.includes('GRANT')) {
     return FEATURE_STATUS.DISABLED;
@@ -185,6 +189,10 @@ const checkCanReceiveGrants = async (collective, req: Express.Request) => {
 };
 
 const checkCanReceiveExpenses = async (collective, req: Express.Request) => {
+  if (collective.deactivatedAt) {
+    return FEATURE_STATUS.DISABLED; // Archived accounts cannot receive expenses
+  }
+
   const supportedTypes = await getSupportedExpenseTypes(collective, { loaders: req.loaders });
   if (!supportedTypes.includes('INVOICE') && !supportedTypes.includes('RECEIPT')) {
     return FEATURE_STATUS.DISABLED;

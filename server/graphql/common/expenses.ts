@@ -2570,7 +2570,9 @@ const tryToPredictExpenseCategory = async (
  * guards in sync.
  */
 export const checkCanReceiveExpense = (account: Collective): void => {
-  if (!account.isActive) {
+  if (account.deactivatedAt) {
+    throw new ValidationFailed('Expenses cannot be submitted to archived accounts.');
+  } else if (!account.isActive) {
     throw new ValidationFailed('Expenses can only be submitted to active entities.');
   }
   const isAllowedType = [
