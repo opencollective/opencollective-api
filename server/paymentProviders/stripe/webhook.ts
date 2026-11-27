@@ -968,6 +968,15 @@ async function handleExpensePaymentIntentFailed(event: Stripe.Event) {
   }
 }
 
+// A dispute does not change these statuses: a won dispute would otherwise revive the order as PAID
+const DISPUTE_PRESERVED_ORDER_STATUSES = [
+  OrderStatuses.DISPUTED,
+  OrderStatuses.REFUNDED,
+  OrderStatuses.CANCELLED,
+  OrderStatuses.REJECTED,
+  OrderStatuses.EXPIRED,
+];
+
 export const chargeDisputeCreated = async (event: Stripe.Event) => {
   const dispute = event.data.object as Stripe.Dispute;
   const chargeTransaction = await models.Transaction.findOne({
@@ -1019,7 +1028,7 @@ export const chargeDisputeCreated = async (event: Stripe.Event) => {
     transactions.map(async transaction => {
       await transaction.update({ isDisputed: true });
       const order = transaction.Order;
-      if (order.status !== OrderStatuses.DISPUTED) {
+      if (!DISPUTE_PRESERVED_ORDER_STATUSES.includes(order.status)) {
         await order.update({ status: OrderStatuses.DISPUTED });
 
         if (order.SubscriptionId) {
