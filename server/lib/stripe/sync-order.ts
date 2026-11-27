@@ -54,6 +54,16 @@ export const syncOrder = async (order, { IS_DRY, logging }: { IS_DRY?; logging? 
           status: OrderStatuses.CANCELLED,
           data: omit(order.data, ['stripePaymentIntent']),
         });
+      } else if (order.status === OrderStatuses.NEW && !IS_DRY) {
+        // The webhook recorded the charge, but a side effect failed before the order was marked as paid
+        await order.update({
+          status: order.SubscriptionId ? OrderStatuses.ACTIVE : OrderStatuses.PAID,
+          processedAt: transaction.createdAt,
+          data: {
+            ...omit(order.data, ['stripePaymentIntent']),
+            previousStripePaymentIntents: [...(order.data.previousStripePaymentIntents ?? []), stripePaymentIntent],
+          },
+        });
       }
       return;
     }
