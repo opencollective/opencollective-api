@@ -137,7 +137,7 @@ describe('scripts/paypal/disconnect-host', () => {
     return { report, sentEmails: sendEmailSpy.callCount };
   };
 
-  it('cancels the subscriptions on PayPal and disconnects a connected host', async () => {
+  it('cancels the subscriptions on PayPal and disconnects a connected host (with --force-disconnect)', async () => {
     const { host, connectedAccount } = await fakeHostWithPaypal();
     const payeeAccount = await fakeConnectedAccount({
       CollectiveId: host.id,
@@ -158,7 +158,12 @@ describe('scripts/paypal/disconnect-host', () => {
       [subId(notFoundOrder)]: new Error('PayPal request failed (404): RESOURCE_NOT_FOUND'),
     });
 
-    const { report, sentEmails } = await runAndCountEmails({ hostSlug: host.slug, execute: true, throttleMs: 0 });
+    const { report, sentEmails } = await runAndCountEmails({
+      hostSlug: host.slug,
+      execute: true,
+      forceDisconnect: true,
+      throttleMs: 0,
+    });
 
     expect(sentEmails).to.eq(0);
     expect(report.isConnected).to.be.true;
@@ -207,6 +212,55 @@ describe('scripts/paypal/disconnect-host', () => {
     activities.forEach(activity => expect(activity.data.notify).to.be.false);
 
     expect((await findCancelledOrdersWithActiveSubscriptions()).count).to.eq(0);
+  });
+
+  it('keeps orders that failed on PayPal and the connection for a re-run on a connected host', async () => {
+    const { host, connectedAccount } = await fakeHostWithPaypal();
+    const collective = await fakeCollective({ HostCollectiveId: host.id });
+    const activeOrder = await fakePaypalSubscriptionOrder(collective, { chargedByHost: host });
+    const failingOrder = await fakePaypalSubscriptionOrder(collective, {
+      chargedByHost: host,
+      data: { needsAsyncDeactivation: true },
+    });
+    const subId = order => order.Subscription.paypalSubscriptionId;
+    stubPaypal(paypalRequestStub, {
+      [subId(activeOrder)]: 'ACTIVE',
+      [subId(failingOrder)]: new Error('PayPal request failed (503): Service Unavailable'),
+    });
+
+    const { report, sentEmails } = await runAndCountEmails({ hostSlug: host.slug, execute: true, throttleMs: 0 });
+
+    expect(sentEmails).to.eq(0);
+    expect(report.cancelledOnPaypal).to.deep.eq([activeOrder.id]);
+    expect(report.manualReview).to.deep.eq([failingOrder.id]);
+    expect(report.cancelledInDb).to.deep.eq([activeOrder.id]);
+    expect(report.skippedInDb).to.deep.eq([failingOrder.id]);
+    expect(report.disconnectSkipped).to.be.true;
+    expect(getCalls(paypalRequestStub, 'DELETE')).to.be.empty;
+    expect(await models.ConnectedAccount.findByPk(connectedAccount.id)).to.exist;
+
+    // The failing order is untouched
+    await failingOrder.reload();
+    await failingOrder.Subscription.reload();
+    expect(failingOrder.status).to.eq(OrderStatuses.ACTIVE);
+    expect(failingOrder.Subscription.isActive).to.be.true;
+    expect(failingOrder.data.needsAsyncDeactivation).to.be.true;
+    expect(failingOrder.data.paypalHostDisconnection).to.be.undefined;
+
+    // Re-run once PayPal works again: the failing order is retried and the host gets disconnected
+    paypalRequestStub.reset();
+    stubPaypal(paypalRequestStub, { [subId(failingOrder)]: 'ACTIVE' });
+    const { report: secondReport } = await runAndCountEmails({ hostSlug: host.slug, execute: true, throttleMs: 0 });
+
+    expect(secondReport.cancelledOnPaypal).to.deep.eq([failingOrder.id]);
+    expect(secondReport.cancelledInDb).to.deep.eq([failingOrder.id]);
+    expect(secondReport.disconnectSkipped).to.be.false;
+    expect(secondReport.deletedConnectedAccountIds).to.deep.eq([connectedAccount.id]);
+    expect(await models.ConnectedAccount.findByPk(connectedAccount.id)).to.be.null;
+
+    await failingOrder.reload();
+    expect(failingOrder.status).to.eq(OrderStatuses.CANCELLED);
+    expect(failingOrder.data.paypalHostDisconnection.paypalOutcome).to.eq('cancelledOnPaypal');
   });
 
   it('only cancels in the database for a host without PayPal connection', async () => {

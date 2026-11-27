@@ -4,13 +4,16 @@
  * See https://github.com/opencollective/opencollective/issues/9159
  *
  * Usage:
- *   npm run script scripts/paypal/disconnect-host.ts <hostSlug> [--execute] [--orders <ids>]
+ *   npm run script scripts/paypal/disconnect-host.ts <hostSlug> [--execute] [--orders <ids>] [--force-disconnect]
  *
  * - Dry run by default: prints everything it would do. Only read-only (`GET`) requests are sent to PayPal.
  * - `--execute`: cancels the subscriptions on PayPal, writes to the database and (unless `--orders`) removes the
  *   webhooks and the PayPal connected account(s) of the host.
  * - `--orders 1,2,3`: only process these orders, and never disconnect the host. Useful to cancel single
  *   subscriptions on a host that stays connected.
+ * - On a connected host, orders that need a manual review (PayPal error or unknown status) are left untouched in the
+ *   database and the host is not disconnected, so that a re-run can retry them. `--force-disconnect` cancels them in
+ *   the database and disconnects the host anyway (they may still be live on PayPal).
  *
  * Selection: orders (any status) with an active PayPal subscription whose "PayPal host" is the target. The PayPal host
  * is the host of the most recent `CONTRIBUTION`/`CREDIT` transaction of the order, or the collective's current host
@@ -84,6 +87,10 @@ type DisconnectHostReport = {
   hostNotConnected: number[];
   manualReview: number[];
   cancelledInDb: number[];
+  /** Orders left untouched in the DB so that a re-run can retry them on PayPal */
+  skippedInDb: number[];
+  /** True when the host was not disconnected because some orders need a manual review */
+  disconnectSkipped: boolean;
   deletedWebhookIds: string[];
   deletedConnectedAccountIds: number[];
 };
@@ -94,6 +101,8 @@ type DisconnectHostOptions = {
   execute?: boolean;
   /** Only process these orders, and never disconnect the host */
   orderIds?: number[];
+  /** Cancel `manualReview` orders in the DB and disconnect the host even if some PayPal requests failed */
+  forceDisconnect?: boolean;
   /** Delay between PayPal requests, to prevent rate limiting */
   throttleMs?: number;
 };
@@ -300,6 +309,7 @@ export const disconnectPaypalHost = async ({
   hostSlug,
   execute = false,
   orderIds = undefined,
+  forceDisconnect = false,
   throttleMs = 500,
 }: DisconnectHostOptions): Promise<DisconnectHostReport> => {
   const dryRun = !execute;
@@ -332,6 +342,8 @@ export const disconnectPaypalHost = async ({
     hostNotConnected: [],
     manualReview: [],
     cancelledInDb: [],
+    skippedInDb: [],
+    disconnectSkipped: false,
     deletedWebhookIds: [],
     deletedConnectedAccountIds: [],
   };
@@ -356,10 +368,20 @@ export const disconnectPaypalHost = async ({
     report[result.paypalOutcome].push(order.id);
   }
 
+  // On a connected host, orders that failed on PayPal (possibly transient errors) may still be live there. Keep them
+  // (and the PayPal connection) so that a re-run can retry them, unless `forceDisconnect` is set.
+  const keepForRetry = isConnected && !forceDisconnect && report.manualReview.length > 0;
+
   // 2. Cancel in the database. Done before disconnecting the host so that, if it fails, a re-run still sees the
   // connection and records the actual PayPal status.
   for (const [index, order] of orders.entries()) {
     const result = report.orders[index];
+    if (keepForRetry && result.paypalOutcome === 'manualReview') {
+      logger.warn(`${dryRun ? '[DRY RUN] ' : ''}Order #${order.id}: needs a manual review, leaving it untouched`);
+      report.skippedInDb.push(order.id);
+      continue;
+    }
+
     log(dryRun, `Order #${order.id}: marking as CANCELLED in the database (was ${order.status})`);
     if (!dryRun) {
       await cancelInDb(order, host, result);
@@ -368,7 +390,13 @@ export const disconnectPaypalHost = async ({
   }
 
   // 3. Disconnect the host (only when processing all its subscriptions)
-  if (isConnected && !orderIds) {
+  if (isConnected && !orderIds && keepForRetry) {
+    report.disconnectSkipped = true;
+    logger.warn(
+      `${dryRun ? '[DRY RUN] ' : ''}Not disconnecting @${host.slug}: ${report.manualReview.length} orders need a manual review. ` +
+        `Fix them on PayPal and re-run, or pass --force-disconnect.`,
+    );
+  } else if (isConnected && !orderIds) {
     Object.assign(report, await disconnectHost(host, { dryRun }));
   } else if (!isConnected && !orderIds) {
     log(dryRun, `@${host.slug} has no PayPal connection: subscriptions can only be cancelled in our database`);
@@ -390,6 +418,9 @@ export const disconnectPaypalHost = async ({
     );
   }
   log(dryRun, `Cancelled in DB: ${report.cancelledInDb.length} ${JSON.stringify(report.cancelledInDb)}`);
+  if (report.skippedInDb.length) {
+    log(dryRun, `Left untouched for a re-run: ${report.skippedInDb.length} ${JSON.stringify(report.skippedInDb)}`);
+  }
   if (report.manualReview.length) {
     logger.warn(
       `${dryRun ? '[DRY RUN] ' : ''}Manual review needed on PayPal for ${report.manualReview.length} orders:`,
@@ -423,15 +454,20 @@ const main = async () => {
     .argument('<hostSlug>', 'Slug of the host')
     .option('--execute', 'Apply the changes (dry run by default)')
     .option('--orders <ids>', 'Comma-separated order IDs. Only process these orders and never disconnect the host')
+    .option(
+      '--force-disconnect',
+      'Cancel orders that failed on PayPal in the database and disconnect the host anyway (they may still be live on PayPal)',
+    )
     .parse();
 
   const [hostSlug] = program.args;
-  const options = program.opts<{ execute?: boolean; orders?: string }>();
+  const options = program.opts<{ execute?: boolean; orders?: string; forceDisconnect?: boolean }>();
   try {
     await disconnectPaypalHost({
       hostSlug,
       execute: Boolean(options.execute),
       orderIds: options.orders ? parseOrderIds(options.orders) : undefined,
+      forceDisconnect: Boolean(options.forceDisconnect),
     });
   } finally {
     await sequelize.close();
