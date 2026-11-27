@@ -60,6 +60,7 @@ import contributorsLoaders from './contributors';
 import conversationLoaders from './conversation';
 import { generateConvertToCurrencyLoader, generateFxRateLoader } from './currency-exchange-rate';
 import * as expenseLoaders from './expenses';
+import { generateFeatureProbesLoader } from './feature-probes';
 import { generateFiscalHostNoteByHostAndAccountLoader } from './fiscal-host-note';
 import { buildLoaderForAssociation, sortResults, sortResultsArray, sortResultsSimple } from './helpers';
 import locationLoaders from './location';
@@ -219,6 +220,7 @@ export const generateLoaders = req => {
       byUserId: collectiveLoaders.byUserId(),
       mainProfileFromIncognito: collectiveLoaders.mainProfileFromIncognito(),
       isApproved: collectiveLoaders.isApproved(),
+      featureProbes: generateFeatureProbesLoader(),
       hostByCollectiveId: new DataLoader<number, Collective>(ids =>
         Collective.findAll({
           attributes: ['id'],

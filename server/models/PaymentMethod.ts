@@ -1,7 +1,7 @@
 import config from 'config';
 import debugLib from 'debug';
 import { get, intersection } from 'lodash';
-import { FindOptions, InferAttributes, InferCreationAttributes, WhereOptions } from 'sequelize';
+import { CreationOptional, FindOptions, InferAttributes, InferCreationAttributes, WhereOptions } from 'sequelize';
 
 import { SupportedCurrency } from '../constants/currencies';
 import { maxInteger } from '../constants/math';
@@ -72,6 +72,7 @@ class PaymentMethod extends ModelWithPublicId<
   declare updatedAt: Date;
   declare confirmedAt: Date;
   declare archivedAt: Date;
+  declare deletedAt: CreationOptional<Date>;
   declare expiryDate: Date;
   declare initialBalance: number;
   declare limitedToTags: string[];
@@ -236,6 +237,10 @@ PaymentMethod.init(
     },
 
     archivedAt: {
+      type: DataTypes.DATE,
+    },
+
+    deletedAt: {
       type: DataTypes.DATE,
     },
 
