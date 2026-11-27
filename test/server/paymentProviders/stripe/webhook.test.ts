@@ -17,6 +17,7 @@ import { TransactionKind } from '../../../../server/constants/transaction-kind';
 import * as applyContributionAccountingCategoryRules from '../../../../server/lib/accounting/categorization/contribution-rules';
 import * as libPayments from '../../../../server/lib/payments';
 import { MAX_RETRIES } from '../../../../server/lib/recurring-contributions';
+import * as SentryLib from '../../../../server/lib/sentry';
 import stripe from '../../../../server/lib/stripe';
 import * as transactions from '../../../../server/lib/transactions';
 import models, { Collective, Expense } from '../../../../server/models';
@@ -608,6 +609,30 @@ describe('webhook', () => {
     });
 
     describe('stripePaymentIntentSucceeded()', () => {
+      it('reports succeeded payment intents that match no order to Sentry', async () => {
+        const reportStub = sandbox.stub(SentryLib, 'reportMessageToSentry');
+        set(event, 'data.object.id', randStr('pi_notfound'));
+        await webhook.stripePaymentIntentSucceeded(event);
+
+        assert.calledOnceWithMatch(reportStub, sinon.match('Could not find Order for succeeded Payment Intent'));
+      });
+
+      it('does not report payment intents already processed synchronously', async () => {
+        const reportStub = sandbox.stub(SentryLib, 'reportMessageToSentry');
+        sandbox.stub(common, 'createChargeTransactions').throws();
+        const paymentIntentId = randStr('pi_sync');
+        await order.update({
+          status: OrderStatuses.PAID,
+          data: { previousStripePaymentIntents: [{ id: paymentIntentId }] },
+        });
+        set(event, 'data.object.id', paymentIntentId);
+        set(event, 'data.object.metadata', { orderId: `${order.id}` });
+        await webhook.stripePaymentIntentSucceeded(event);
+
+        assert.notCalled(reportStub);
+        assert.notCalled(common.createChargeTransactions);
+      });
+
       it('returns if no order is found', async () => {
         sandbox.stub(common, 'createChargeTransactions').throws();
         set(event, 'data.object.id', 'pi_notfound');
@@ -1545,6 +1570,18 @@ describe('webhook', () => {
 
         await expense.reload();
         expect(expense.status).to.eql(ExpenseStatuses.PROCESSING);
+      });
+
+      it('does not move a paid expense back to PROCESSING on a late event', async () => {
+        event.data.object.metadata = { expenseId: `${expense.id}` };
+        await webhook.stripePaymentIntentSucceeded(event);
+        await expense.reload();
+        expect(expense.status).to.eql(ExpenseStatuses.PAID);
+
+        await webhook.stripePaymentIntentProcessing(event);
+
+        await expense.reload();
+        expect(expense.status).to.eql(ExpenseStatuses.PAID);
       });
     });
 

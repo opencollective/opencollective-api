@@ -325,7 +325,23 @@ const handleOrderPaymentIntentSucceeded = async (event: Stripe.Event) => {
   });
 
   if (!order) {
-    reportUnmatchedSucceededPaymentIntent('Order', stripePaymentIntent, stripeAccount);
+    // Synchronous card payments are recorded right away and move their intent to `previousStripePaymentIntents`
+    // before this webhook arrives: only report intents that were never handled.
+    const orderIdFromMetadata = parseInt(stripePaymentIntent.metadata?.orderId);
+    const [previousOrder, existingChargeTransaction] = await Promise.all([
+      orderIdFromMetadata
+        ? models.Order.findByPk(orderIdFromMetadata, { attributes: ['id', 'data'] }).then(order =>
+            order?.data?.previousStripePaymentIntents?.some(pi => pi?.id === stripePaymentIntent.id) ? order : null,
+          )
+        : null,
+      charge?.id
+        ? models.Transaction.findOne({ attributes: ['id'], where: { data: { charge: { id: charge.id } } } })
+        : null,
+    ]);
+
+    if (!previousOrder && !existingChargeTransaction) {
+      reportUnmatchedSucceededPaymentIntent('Order', stripePaymentIntent, stripeAccount);
+    }
     return;
   }
 
@@ -705,6 +721,12 @@ async function handleExpensePaymentIntentProcessing(event: Stripe.Event) {
       reportMessageToSentry(`Stripe Webhook: Could not find Expense for Payment Intent ${stripePaymentIntent.id}`, {
         extra: { event },
       });
+      return;
+    } else if (expense.status === ExpenseStatus.PAID) {
+      // Late or out-of-order event: the payment was already recorded, don't move the expense back to PROCESSING
+      logger.info(
+        `Stripe Webhook: Expense ${expense.id} is already paid, ignoring processing event for Payment Intent ${stripePaymentIntent.id}`,
+      );
       return;
     }
 
