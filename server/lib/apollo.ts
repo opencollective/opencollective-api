@@ -29,8 +29,11 @@ export const apolloSlowRequestCachePlugin = {
         const executionTime = req.endAt - req.startAt;
         req.res.set('Execution-Time', executionTime);
 
-        // This will never happen for logged-in users as cacheKey is not set
-        if (req.cacheKey && !response?.errors && executionTime > minExecutionTimeToCache) {
+        // This will never happen for logged-in users as cacheKey is not set.
+        // Never cache responses with errors (validation rejections, resolver failures, partial data): cache hits
+        // are served by the GraphQL cache middleware before Apollo runs, so they would skip validation and be
+        // replayed to every anonymous user until the TTL expires.
+        if (req.cacheKey && !result.errors?.length && executionTime > minExecutionTimeToCache) {
           cache.set(req.cacheKey, result, Number(config.graphql.cache.ttl));
         }
       },
