@@ -131,6 +131,7 @@ export const generateLoaders = req => {
     Comment: {
       ...context.loaders.Comment,
       countByExpenseAndType: commentsLoader.countByExpenseAndType(),
+      pageByExpense: commentsLoader.pageByExpense(),
       countByHostApplication: commentsLoader.countByHostApplication(),
       // Comment Reactions
       reactionsByCommentId: commentsLoader.reactionsByCommentId(),
