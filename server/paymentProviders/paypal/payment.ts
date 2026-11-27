@@ -168,6 +168,8 @@ export async function findTransactionByPaypalId(
   });
 }
 
+const PAYPAL_HOST_MERCHANT_ID_LOOKUP_FAILED = 'paypal-host-merchant-id-lookup-failed';
+
 /**
  * Make sure the PayPal order pays the host's own PayPal account (the owner of the API credentials).
  * If the host's merchant ID can't be retrieved, we report it and let the payment go through.
@@ -189,8 +191,11 @@ const checkPaypalOrderPayee = async (purchaseUnit, hostCollective): Promise<void
   }
 
   if (!hostMerchantId) {
+    // Dedicated grouping so that a persistent failure (which disables the check) shows up as one alertable issue
     reportMessageToSentry('Could not retrieve the PayPal merchant ID of the host', {
       feature: FEATURE.PAYPAL_DONATIONS,
+      fingerprint: [PAYPAL_HOST_MERCHANT_ID_LOOKUP_FAILED],
+      tags: { hostId: String(hostCollective.id) },
       extra: { hostId: hostCollective.id, error },
     });
   } else if (payee.merchant_id !== hostMerchantId) {

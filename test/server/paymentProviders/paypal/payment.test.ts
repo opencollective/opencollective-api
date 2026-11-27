@@ -227,6 +227,8 @@ describe('server/paymentProviders/paypal/payment', () => {
           expect(reportMessageStub.calledOnce).to.be.true;
           expect(reportMessageStub.firstCall.args[0]).to.eq('Could not retrieve the PayPal merchant ID of the host');
           expect(reportMessageStub.firstCall.args[1].extra.hostId).to.eq(host.id);
+          expect(reportMessageStub.firstCall.args[1].tags.hostId).to.eq(String(host.id));
+          expect(reportMessageStub.firstCall.args[1].fingerprint).to.deep.eq(['paypal-host-merchant-id-lookup-failed']);
         });
 
         it('lets the payment through and reports to Sentry if userinfo returns no payer_id', async () => {
@@ -237,6 +239,7 @@ describe('server/paymentProviders/paypal/payment', () => {
           expect(transaction).to.exist;
           expect(reportMessageStub.calledOnce).to.be.true;
           expect(reportMessageStub.firstCall.args[0]).to.eq('Could not retrieve the PayPal merchant ID of the host');
+          expect(reportMessageStub.firstCall.args[1].fingerprint).to.deep.eq(['paypal-host-merchant-id-lookup-failed']);
         });
 
         it('rejects if the payee is not the host PayPal account', async () => {

@@ -59,6 +59,33 @@ describe('server/lib/sentry', () => {
     });
   });
 
+  describe('reportMessageToSentry', () => {
+    it('applies a custom fingerprint to the scope', () => {
+      sandbox.stub(config, 'sentry').value({ dsn: 'https://sentry.io/123' });
+      const scope = new SentryLib.Sentry.Scope();
+      const setFingerprintSpy = sandbox.spy(scope, 'setFingerprint');
+      sandbox.stub(SentryLib.Sentry, 'withScope').callsFake(callback => callback(scope));
+      const captureMessageStub = sandbox.stub(SentryLib.Sentry, 'captureMessage');
+
+      SentryLib.reportMessageToSentry('Test message', { fingerprint: ['my-custom-group'] });
+
+      expect(setFingerprintSpy).to.have.been.calledOnceWith(['my-custom-group']);
+      expect(captureMessageStub).to.have.been.calledOnceWith('Test message');
+    });
+
+    it('keeps the default grouping without a fingerprint', () => {
+      sandbox.stub(config, 'sentry').value({ dsn: 'https://sentry.io/123' });
+      const scope = new SentryLib.Sentry.Scope();
+      const setFingerprintSpy = sandbox.spy(scope, 'setFingerprint');
+      sandbox.stub(SentryLib.Sentry, 'withScope').callsFake(callback => callback(scope));
+      sandbox.stub(SentryLib.Sentry, 'captureMessage');
+
+      SentryLib.reportMessageToSentry('Test message');
+
+      expect(setFingerprintSpy).to.not.have.been.called;
+    });
+  });
+
   describe('beforeSendMetric', () => {
     it('keeps metrics whose name matches the grammar', () => {
       const metric: Metric = { name: 'thirdparty.stripe.payment.succeeded', value: 1, type: 'counter' };
