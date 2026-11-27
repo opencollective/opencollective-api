@@ -7894,7 +7894,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         const mutationParams = { expenseId: expense.id, action: 'UNSCHEDULE_PAYMENT' };
         const result = await graphqlQueryV2(processExpenseMutation, mutationParams, wiseHostAdmin);
         expect(result.errors).to.exist;
-        expect(result.errors[0].message).to.include('currently being processed');
+        expect(result.errors[0].message).to.include('already been processed');
         expect(unscheduleStub.called).to.be.false;
       });
 
@@ -7968,9 +7968,49 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         const mutationParams = { expenseId: expense.id, action: 'SCHEDULE_FOR_PAYMENT' };
         const result = await graphqlQueryV2(processExpenseMutation, mutationParams, wiseHostAdmin);
         expect(result.errors).to.exist;
-        expect(result.errors[0].message).to.include('currently being processed');
+        expect(result.errors[0].message).to.include('already been processed');
         expect(quoteStub.called).to.be.false;
         expect(scheduleStub.called).to.be.false;
+      });
+
+      it('SCHEDULE_FOR_PAYMENT holds the processing lock while Wise is called', async () => {
+        const payoutMethod = await fakePayoutMethod({ type: PayoutMethodTypes.BANK_ACCOUNT });
+        const expense = await fakeExpense({
+          amount: 1000,
+          currency: 'USD',
+          CollectiveId: wiseCollective.id,
+          status: 'APPROVED',
+          PayoutMethodId: payoutMethod.id,
+        });
+
+        sandbox.stub(paymentProviders.transferwise, 'quoteExpense').resolves({
+          payOut: 'BANK_TRANSFER',
+          paymentOption: { fee: { total: 1 }, sourceCurrency: 'USD', targetCurrency: 'USD', disabled: false },
+        });
+        let concurrentResult;
+        sandbox.stub(paymentProviders.transferwise, 'scheduleExpenseForPayment').callsFake(async expenseInstance => {
+          // Another admin tries to unapprove while the Wise transfer is being created
+          concurrentResult = await graphqlQueryV2(
+            processExpenseMutation,
+            { expenseId: expense.id, action: 'UNAPPROVE' },
+            wiseHostAdmin,
+          );
+          await expenseInstance.reload();
+          return expenseInstance;
+        });
+
+        const mutationParams = { expenseId: expense.id, action: 'SCHEDULE_FOR_PAYMENT' };
+        const result = await graphqlQueryV2(processExpenseMutation, mutationParams, wiseHostAdmin);
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.processExpense.status).to.eq('SCHEDULED_FOR_PAYMENT');
+
+        expect(concurrentResult.errors).to.exist;
+        expect(concurrentResult.errors[0].message).to.include('currently being processed');
+
+        await expense.reload();
+        expect(expense.status).to.eq('SCHEDULED_FOR_PAYMENT');
+        expect(expense.data.isLocked).to.be.false;
       });
 
       it('unschedules a non-Wise expense', async () => {
