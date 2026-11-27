@@ -523,6 +523,39 @@ describe('webhook', () => {
         });
       });
 
+      describe('when the Order never went IN_REVIEW (review.opened was not processed)', () => {
+        it('cancels a recurring contribution and deactivates its Subscription', async () => {
+          await order.update({ status: OrderStatuses.ACTIVE });
+          await (await order.getSubscription()).activate();
+
+          await webhook.reviewClosed(stripeMocks.webhook_review_closed_refunded_as_fraud);
+
+          await order.reload();
+          expect(order.status).to.eql(OrderStatuses.CANCELLED);
+          expect((await order.getSubscription()).isActive).to.eql(false);
+          const transactions = await order.getTransactions();
+          expect(transactions.filter(tx => tx.isRefund)).to.have.length(2);
+        });
+
+        it('marks a one-time contribution REFUNDED', async () => {
+          await order.update({ SubscriptionId: null, status: OrderStatuses.PAID });
+
+          await webhook.reviewClosed(stripeMocks.webhook_review_closed_refunded_as_fraud);
+
+          await order.reload();
+          expect(order.status).to.eql(OrderStatuses.REFUNDED);
+        });
+
+        it('does not change a contribution that was already cancelled', async () => {
+          await order.update({ status: OrderStatuses.CANCELLED });
+
+          await webhook.reviewClosed(stripeMocks.webhook_review_closed_refunded_as_fraud);
+
+          await order.reload();
+          expect(order.status).to.eql(OrderStatuses.CANCELLED);
+        });
+      });
+
       it('limits Orders for User account', async () => {
         await webhook.reviewOpened(stripeMocks.webhook_review_opened);
         await webhook.reviewClosed(stripeMocks.webhook_review_closed_refunded_as_fraud);

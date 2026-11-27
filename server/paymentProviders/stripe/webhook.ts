@@ -1371,9 +1371,13 @@ export const reviewClosed = async (event: Stripe.Event) => {
 
     // closedReasons: approved, refunded, refunded_as_fraud, disputed, redacted
     if (closedReason === 'refunded_as_fraud' || closedReason === 'refunded') {
-      if (order.status === OrderStatuses.IN_REVIEW) {
+      // Also close live orders that never went IN_REVIEW, e.g. when review.opened arrived before the charge was recorded
+      if (order.status === OrderStatuses.IN_REVIEW || REVIEWABLE_ORDER_STATUSES.includes(order.status)) {
         if (order.SubscriptionId) {
           await order.update({ status: OrderStatuses.CANCELLED, data: { ...order.data, closedReason } });
+          if (order.Subscription?.isActive) {
+            await order.Subscription.deactivate();
+          }
         } else {
           await order.update({ status: OrderStatuses.REFUNDED, data: { ...order.data, closedReason } });
         }
