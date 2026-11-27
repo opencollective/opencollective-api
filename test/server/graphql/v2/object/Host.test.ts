@@ -7,6 +7,7 @@ import { createSandbox } from 'sinon';
 import { CollectiveType } from '../../../../../server/constants/collectives';
 import { PlatformSubscriptionTiers, PlatformSubscriptionTierTypes } from '../../../../../server/constants/plans';
 import MemberRoles from '../../../../../server/constants/roles';
+import { TAX_FORM_CANDIDATES_THRESHOLDS } from '../../../../../server/graphql/v2/object/Host';
 import SQLQueries from '../../../../../server/lib/queries';
 import models, { PlatformSubscription } from '../../../../../server/models';
 import { PayoutMethodTypes } from '../../../../../server/models/PayoutMethod';
@@ -326,6 +327,134 @@ describe('server/graphql/v2/object/Host', () => {
       );
       expect(result.errors).to.be.undefined;
       expect(result.data.host.hostedLegalDocuments.totalCount).to.eql(0);
+    });
+
+    describe('scoping the tax form requirement to candidate accounts', () => {
+      const filteredTaxFormsQuery = gql`
+        query HostTaxFormsFiltered(
+          $slug: String!
+          $limit: Int
+          $offset: Int
+          $accounts: [AccountReferenceInput]
+          $status: [LegalDocumentRequestStatus]
+          $searchTerm: String
+          $requestedAtFrom: DateTime
+        ) {
+          host(slug: $slug) {
+            id
+            hostedLegalDocuments(
+              type: US_TAX_FORM
+              limit: $limit
+              offset: $offset
+              account: $accounts
+              status: $status
+              searchTerm: $searchTerm
+              requestedAtFrom: $requestedAtFrom
+              orderBy: { field: CREATED_AT, direction: DESC }
+            ) {
+              totalCount
+              nodes {
+                id
+              }
+            }
+          }
+        }
+      `;
+
+      let filterCases;
+
+      beforeEach(async () => {
+        const otherHost = await fakeActiveHost();
+        const hostedCollective = await fakeCollective({ HostCollectiveId: host.id });
+        const otherHostCollective = await fakeCollective({ HostCollectiveId: otherHost.id });
+        const payoutMethod = await fakePayoutMethod({ type: PayoutMethodTypes.OTHER });
+        const pay = (FromCollectiveId, overrides = {}) =>
+          fakeExpense({
+            FromCollectiveId,
+            CollectiveId: hostedCollective.id,
+            HostCollectiveId: host.id,
+            PayoutMethodId: payoutMethod.id,
+            amount: 1_000_000e2,
+            status: 'PAID',
+            ...overrides,
+          });
+
+        // Requires a tax form, with a received document and an older one
+        const receivedPayee = await fakeCollective({ type: CollectiveType.ORGANIZATION, name: 'Alice Received' });
+        await pay(receivedPayee.id);
+        await fakeLegalDocument({ CollectiveId: receivedPayee.id, requestStatus: 'RECEIVED' });
+        await fakeLegalDocument({
+          CollectiveId: receivedPayee.id,
+          year: 2020,
+          createdAt: new Date('2020-02-01'),
+        });
+
+        // Paid by another host for a collective hosted by this host: requires a tax form
+        const paidByOtherHostPayee = await fakeCollective({ type: CollectiveType.ORGANIZATION });
+        await pay(paidByOtherHostPayee.id, { HostCollectiveId: otherHost.id });
+        await fakeLegalDocument({ CollectiveId: paidByOtherHostPayee.id });
+
+        // Below the threshold, paid by another host only, or never paid: no tax form required here
+        const belowThresholdPayee = await fakeCollective({ type: CollectiveType.ORGANIZATION, name: 'Alice Small' });
+        await pay(belowThresholdPayee.id, { amount: 10e2 });
+        await fakeLegalDocument({ CollectiveId: belowThresholdPayee.id });
+        const otherHostPayee = await fakeCollective({ type: CollectiveType.ORGANIZATION });
+        await pay(otherHostPayee.id, { HostCollectiveId: otherHost.id, CollectiveId: otherHostCollective.id });
+        await fakeLegalDocument({ CollectiveId: otherHostPayee.id });
+        const unpaidAccount = await fakeCollective({ type: CollectiveType.ORGANIZATION });
+        await fakeLegalDocument({ CollectiveId: unpaidAccount.id, requestStatus: 'RECEIVED' });
+
+        filterCases = [
+          {},
+          { limit: 2, offset: 1 },
+          { status: ['RECEIVED'] },
+          { status: ['REQUESTED', 'RECEIVED'] },
+          { status: ['ERROR'] },
+          { searchTerm: 'Alice' },
+          { searchTerm: 'no match' },
+          { requestedAtFrom: '2021-01-01T00:00:00Z' },
+          { accounts: [{ id: receivedPayee.publicId }, { id: belowThresholdPayee.publicId }] },
+        ];
+      });
+
+      const queryAllCases = async () => {
+        const results = [];
+        for (const filters of filterCases) {
+          const result = await graphqlQueryV2(filteredTaxFormsQuery, { slug: host.slug, ...filters }, hostAdmin);
+          expect(result.errors).to.be.undefined;
+          results.push(result.data.host.hostedLegalDocuments);
+        }
+        return results;
+      };
+
+      it('returns the same documents as the host-wide query', async () => {
+        const spy = sandbox.spy(SQLQueries, 'getTaxFormsRequiredForAccounts');
+        const hostWideResults = await queryAllCases();
+        expect(hostWideResults[0].totalCount).to.eql(5); // 2 from the parent setup, 2 + 1 from this one
+        expect(hostWideResults[0].nodes).to.have.length(5);
+        expect(
+          spy
+            .getCalls()
+            .filter(call => call.args[0].CollectiveId)
+            .map(call => call.args[0].CollectiveId),
+        ).to.have.length(1); // Only the `accounts` filter is scoped on a small host
+
+        spy.resetHistory();
+        sandbox.stub(TAX_FORM_CANDIDATES_THRESHOLDS, 'largeHostExpensesCount').value(0);
+        const scopedResults = await queryAllCases();
+        expect(scopedResults).to.deep.eq(hostWideResults);
+        expect(spy.getCalls().every(call => Array.isArray(call.args[0].CollectiveId))).to.be.true;
+      });
+
+      it('falls back to the host-wide query when there are too many candidates', async () => {
+        sandbox.stub(TAX_FORM_CANDIDATES_THRESHOLDS, 'largeHostExpensesCount').value(0);
+        sandbox.stub(TAX_FORM_CANDIDATES_THRESHOLDS, 'maxCandidateAccounts').value(1);
+        const spy = sandbox.spy(SQLQueries, 'getTaxFormsRequiredForAccounts');
+        const result = await graphqlQueryV2(filteredTaxFormsQuery, { slug: host.slug }, hostAdmin);
+        expect(result.errors).to.be.undefined;
+        expect(result.data.host.hostedLegalDocuments.totalCount).to.eql(5);
+        expect(spy).to.have.been.calledOnceWith({ HostCollectiveId: host.id, CollectiveId: undefined, allTime: true });
+      });
     });
   });
 
