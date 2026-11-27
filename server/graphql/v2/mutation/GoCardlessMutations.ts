@@ -7,7 +7,7 @@ import {
   createGoCardlessLink,
   reconnectGoCardlessAccount,
 } from '../../../lib/gocardless/connect';
-import { syncGoCardlessAccount } from '../../../lib/gocardless/sync';
+import { GoCardlessRateLimitError, syncGoCardlessAccount } from '../../../lib/gocardless/sync';
 import RateLimit from '../../../lib/rate-limit';
 import { reportErrorToSentry } from '../../../lib/sentry';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
@@ -142,7 +142,7 @@ const goCardlessMutations = {
           full: true,
           retryFor: 30_000,
         }).catch(err => {
-          if (!(err instanceof TransactionsImportLockedError)) {
+          if (!(err instanceof TransactionsImportLockedError) && !(err instanceof GoCardlessRateLimitError)) {
             reportErrorToSentry(err, { req, extra: { args } });
           }
         });
@@ -172,7 +172,7 @@ const goCardlessMutations = {
           dateFrom: lastSyncedTransactionDate,
           retryFor: 30_000,
         }).catch(err => {
-          if (!(err instanceof TransactionsImportLockedError)) {
+          if (!(err instanceof TransactionsImportLockedError) && !(err instanceof GoCardlessRateLimitError)) {
             reportErrorToSentry(err, { req, extra: { args } });
           }
         });

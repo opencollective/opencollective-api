@@ -1,4 +1,4 @@
-import { trim, truncate, uniq } from 'lodash';
+import { isNil, omitBy, trim, truncate, uniq } from 'lodash';
 import moment from 'moment';
 import NordigenClient from 'nordigen-node';
 
@@ -97,6 +97,8 @@ const syncIndividualAccount = async (
     full?: boolean;
     log?: boolean;
     retryFor?: number;
+    /** Last successful sync date for this account. Used to compute `dateFrom` when not provided. */
+    lastSyncAt?: Date | null;
   },
 ) => {
   let retryCount = 0;
@@ -104,8 +106,8 @@ const syncIndividualAccount = async (
 
   const dateTo = options.full ? undefined : options.dateTo;
   let dateFrom = options.full ? undefined : options.dateFrom;
-  if (!dateFrom && transactionsImport.lastSyncAt && !options.full) {
-    dateFrom = moment(transactionsImport.lastSyncAt).subtract(1, 'day').toDate();
+  if (!dateFrom && options.lastSyncAt && !options.full) {
+    dateFrom = moment(options.lastSyncAt).subtract(1, 'day').toDate();
   }
 
   if (options.log) {
@@ -175,6 +177,8 @@ const syncIndividualAccount = async (
           accountId: account,
         })),
       );
+
+      return;
     } catch (e) {
       // This is not supposed to happen, but this check provides
       // an extra layer of protection in case another process tries to insert the same
@@ -191,6 +195,66 @@ const syncIndividualAccount = async (
 
   throw new Error('Failed to sync transactions due to duplicate source IDs', { cause: lastError });
 };
+
+/** Fallback delay when GoCardless returns a 429 without telling us when the limit resets */
+const DEFAULT_RATE_LIMIT_DELAY_SECONDS = 6 * 60 * 60;
+
+/**
+ * Thrown when no account could be synced because they are all rate limited by GoCardless.
+ */
+export class GoCardlessRateLimitError extends Error {
+  retryAt: Date;
+  constructor(retryAt: Date) {
+    super(
+      `The bank data provider only allows a few syncs per day for each bank account. Please try again after ${retryAt.toISOString()}.`,
+    );
+    this.name = 'GoCardlessRateLimitError';
+    this.retryAt = retryAt;
+  }
+}
+
+export const isGoCardlessRateLimitError = (error: unknown): boolean =>
+  (error as { response?: { status?: number } })?.response?.status === 429;
+
+/**
+ * Returns the number of seconds to wait before the rate limit resets, based on the 429 response.
+ * GoCardless returns an `http_x_ratelimit_account_success_reset` header (seconds), and a
+ * `detail` like "... Please try again in 2531 seconds".
+ */
+export const getRateLimitResetSeconds = (error: unknown): number => {
+  const response = (error as { response?: { headers?: Record<string, unknown>; data?: { detail?: unknown } } })
+    ?.response;
+  const headers = response?.headers || {};
+  const getHeader = (name: string) => {
+    const value =
+      typeof (headers as { get?: unknown }).get === 'function'
+        ? (headers as { get: (n: string) => unknown }).get(name)
+        : headers[name];
+    const parsed = parseInt(value as string, 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  };
+
+  const fromHeader =
+    getHeader('http_x_ratelimit_account_success_reset') ||
+    getHeader('x-ratelimit-account-success-reset') ||
+    getHeader('http_x_ratelimit_reset') ||
+    getHeader('x-ratelimit-reset');
+  if (fromHeader) {
+    return fromHeader;
+  }
+
+  const detail = response?.data?.detail;
+  if (typeof detail === 'string') {
+    const match = detail.match(/(\d+)\s*seconds?/i);
+    if (match) {
+      return parseInt(match[1], 10);
+    }
+  }
+
+  return DEFAULT_RATE_LIMIT_DELAY_SECONDS;
+};
+
+type AccountSyncState = NonNullable<TransactionsImport['data']['gocardless']['accountsSyncState']>[string];
 
 /**
  * Sync transactions for a GoCardless connected account.
@@ -225,15 +289,96 @@ export const syncGoCardlessAccount = async (
     throw new Error('No accounts to sync');
   }
 
+  const getAccountState = (account: string): AccountSyncState =>
+    transactionsImport.data?.gocardless?.accountsSyncState?.[account] || {};
+
+  // Skip accounts that are rate limited (before making any API call)
+  const now = new Date();
+  const accountsToSync = filteredAccounts.filter(account => {
+    const { rateLimitedUntil } = getAccountState(account);
+    return !rateLimitedUntil || new Date(rateLimitedUntil) <= now;
+  });
+
+  if (!accountsToSync.length) {
+    throw new GoCardlessRateLimitError(getEarliestRetryDate(filteredAccounts, getAccountState));
+  }
+
   const client = getGoCardlessClient();
   await getOrRefreshGoCardlessToken(client);
   await transactionsImport.lock(async () => {
-    for (const account of filteredAccounts) {
-      await syncIndividualAccount(client, account, transactionsImport, options);
+    const errors: Error[] = [];
+    let hasSyncedAnyAccount = false;
+
+    // Accounts are synced independently: a failure on one of them must not prevent the others from syncing
+    for (const account of accountsToSync) {
+      const previousState = getAccountState(account);
+      const lastSyncAt = previousState.lastSyncAt ? new Date(previousState.lastSyncAt) : transactionsImport.lastSyncAt;
+      let newState: AccountSyncState;
+      try {
+        await syncIndividualAccount(client, account, transactionsImport, { ...options, lastSyncAt });
+        newState = { lastSyncAt: new Date().toISOString() };
+        hasSyncedAnyAccount = true;
+      } catch (e) {
+        if (isGoCardlessRateLimitError(e)) {
+          const rateLimitedUntil = moment().add(getRateLimitResetSeconds(e), 'seconds').toDate();
+          logger.info(`GoCardless account ${account} is rate limited until ${rateLimitedUntil.toISOString()}`);
+          newState = {
+            ...previousState,
+            rateLimitedUntil: rateLimitedUntil.toISOString(),
+            lastErrorMessage: undefined,
+          };
+        } else {
+          errors.push(e);
+          newState = {
+            ...previousState,
+            rateLimitedUntil: undefined,
+            lastErrorMessage: truncate(e.message, { length: 255 }),
+          };
+        }
+      }
+
+      await saveAccountSyncState(transactionsImport, account, newState);
     }
 
-    await transactionsImport.update({
-      lastSyncAt: new Date(),
-    });
+    if (hasSyncedAnyAccount) {
+      await transactionsImport.update({ lastSyncAt: new Date() });
+    }
+
+    if (errors.length) {
+      throw errors[0];
+    } else if (!hasSyncedAnyAccount) {
+      throw new GoCardlessRateLimitError(getEarliestRetryDate(filteredAccounts, getAccountState));
+    }
+  });
+};
+
+const getEarliestRetryDate = (accounts: string[], getAccountState: (account: string) => AccountSyncState): Date => {
+  const dates = accounts
+    .map(account => getAccountState(account).rateLimitedUntil)
+    .filter(Boolean)
+    .map(date => new Date(date));
+  return dates.length ? new Date(Math.min(...dates.map(date => date.getTime()))) : new Date();
+};
+
+const saveAccountSyncState = async (
+  transactionsImport: TransactionsImport,
+  account: string,
+  state: AccountSyncState,
+) => {
+  if (!transactionsImport.data?.gocardless) {
+    return; // Should never happen for GoCardless imports, but the schema requires the `gocardless` object to be complete
+  }
+
+  await transactionsImport.update({
+    data: {
+      ...transactionsImport.data,
+      gocardless: {
+        ...transactionsImport.data.gocardless,
+        accountsSyncState: {
+          ...transactionsImport.data.gocardless.accountsSyncState,
+          [account]: omitBy(state, isNil) as AccountSyncState,
+        },
+      },
+    },
   });
 };

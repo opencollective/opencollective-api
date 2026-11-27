@@ -54,10 +54,10 @@ describe('cron/10mn/10-sync-gocardless-accounts', () => {
       expect(importIds).to.not.include(expiredImport.id);
     });
 
-    it('excludes imports synced within the last 60 minutes', async () => {
+    it('excludes imports synced within the last 8 hours', async () => {
       const now = new Date('2026-06-16T12:00:00.000Z');
       const recentlySyncedImport = await createGoCardlessImport(moment(now).add(30, 'days').toDate(), {
-        lastSyncAt: moment(now).subtract(30, 'minutes').toDate(),
+        lastSyncAt: moment(now).subtract(7, 'hours').toDate(),
       });
 
       const importsToSync = await getGoCardlessImportsToSync(now);
@@ -66,10 +66,12 @@ describe('cron/10mn/10-sync-gocardless-accounts', () => {
       expect(importIds).to.not.include(recentlySyncedImport.id);
     });
 
-    it('includes imports last synced more than 60 minutes ago', async () => {
+    it('includes imports last synced more than 8 hours ago', async () => {
       const now = new Date('2026-06-16T12:00:00.000Z');
       const staleImport = await createGoCardlessImport(moment(now).add(30, 'days').toDate(), {
-        lastSyncAt: moment(now).subtract(61, 'minutes').toDate(),
+        lastSyncAt: moment(now)
+          .subtract(8 * 60 + 1, 'minutes')
+          .toDate(),
       });
 
       const importsToSync = await getGoCardlessImportsToSync(now);
