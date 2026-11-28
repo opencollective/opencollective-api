@@ -4,6 +4,7 @@ import { Command } from 'commander';
 import config from 'config';
 
 import channels from '../server/constants/channels';
+import { getDBConf } from '../server/lib/db';
 import models, { Op, sequelize } from '../server/models';
 
 import { confirm } from './common/helpers';
@@ -340,8 +341,9 @@ const sanitizeDB = async ({
     return;
   }
 
+  const { host, port, database } = getDBConf('database');
   const confirmed = await confirm(
-    `Are you sure you want to run sanitization for scopes in ${config.env} (${config.database.url}): ${scopesToRun.join(', ')}`,
+    `Are you sure you want to run sanitization for scopes in ${config.env} (${host}:${port}/${database}): ${scopesToRun.join(', ')}`,
   );
   if (!confirmed) {
     console.log('Sanitization cancelled.');
