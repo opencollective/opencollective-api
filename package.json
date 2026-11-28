@@ -123,7 +123,7 @@
     "@babel/cli": "^8.0.0",
     "@babel/register": "^8.0.0",
     "@eslint/js": "^10.0.1",
-    "@graphql-eslint/eslint-plugin": "^4.0.0",
+    "@graphql-eslint/eslint-plugin": "^5.0.0",
     "@sentry/cli": "^3.0.0",
     "@types/express": "^5.0.6",
     "@types/fast-redact": "^3.0.4",
