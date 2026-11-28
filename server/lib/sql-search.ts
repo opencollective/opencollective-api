@@ -263,9 +263,12 @@ export const getSearchTermSQLConditions = (term: string, collectiveTable?: strin
       // Only search for existing term
       if (sanitizedTerm) {
         if (splitTerm.length === 1) {
+          // `||` on text is immutable, so Postgres folds `to_tsquery(...)` into a constant when planning.
+          // `concat()` is only stable: the tsquery was parsed again for every matched row, and for a stop
+          // word (`a`, `s`...) each parse sent a NOTICE to the client, one per matched row.
           tsQueryFunc = 'to_tsquery';
-          tsQueryArg = `concat(:sanitizedTerm, ':*')`;
-          sqlConditions = `AND ${getField('searchTsVector')} @@ to_tsquery('simple', concat(:sanitizedTerm, ':*'))`;
+          tsQueryArg = `(:sanitizedTerm::text || ':*')`;
+          sqlConditions = `AND ${getField('searchTsVector')} @@ to_tsquery('simple', ${tsQueryArg})`;
         } else {
           // Search terms with more than word (seperated by spaces) should be searched for
           // both with and without the spaces.

@@ -2,12 +2,14 @@ import { expect } from 'chai';
 import config from 'config';
 import { sql } from 'kysely';
 import { times } from 'lodash';
+import { QueryTypes } from 'sequelize';
 
 import { CollectiveType } from '../../../server/graphql/v1/CollectiveInterface';
 import { getKysely } from '../../../server/lib/kysely';
 import { EntityShortIdPrefix } from '../../../server/lib/permalink/entity-map';
 import {
   buildKyselySearchConditions,
+  buildSearchCollectivesQuery,
   buildSearchConditions,
   canonicalizeIntegerSearchText,
   getColletiveTagFrequencies,
@@ -69,6 +71,37 @@ describe('server/lib/search', () => {
 
         const [results] = await searchCollectivesInDB(publicReq, term);
         expect(results.map(c => c.id)).to.deep.eq([exactSlug.id, ...exactNames.map(c => c.id).reverse(), partial.id]);
+      });
+
+      it('ranks single-word searches like the per-row concat() tsquery it replaces', async () => {
+        const prefix = `tsq${randStr()}`.toLowerCase();
+        await fakeCollective({ name: prefix, slug: prefix });
+        await fakeCollective({ name: `${prefix}abc Club`, slug: `${prefix}-club` });
+        await fakeCollective({ name: 'Other', description: `About ${prefix}xyz and a ${prefix}`, tags: [prefix] });
+        await fakeCollective({
+          name: 'A Stopword Team',
+          longDescription: `<p>${prefix}long ${prefix}long a story</p>`,
+        });
+        await fakeCollective({ name: 'Unrelated', description: 'Nothing to see here' });
+
+        // Prefixes of a fixture word, a full word, a stop word (empty ranking tsquery) and a term without matches
+        for (const term of [prefix.slice(0, 5), prefix, `${prefix}long`, 'a', 's', `${prefix}nomatch`]) {
+          const { pageSql, replacements } = await buildSearchCollectivesQuery(publicReq, term, 0, 100);
+          const legacyPageSql = pageSql.replaceAll(`(:sanitizedTerm::text || ':*')`, `concat(:sanitizedTerm, ':*')`);
+          expect(legacyPageSql).to.not.eq(pageSql);
+          const run = async (query: string) => {
+            const rows = await sequelize.query<{ id: number; __sort__: number }>(query, {
+              type: QueryTypes.SELECT,
+              replacements,
+            });
+            return rows.map(row => [row.id, row.__sort__]);
+          };
+          const results = await run(pageSql);
+          expect(results, term).to.deep.eq(await run(legacyPageSql));
+          if (term !== `${prefix}nomatch`) {
+            expect(results, term).to.not.be.empty;
+          }
+        }
       });
     });
 
