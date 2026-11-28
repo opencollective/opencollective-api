@@ -11,6 +11,7 @@ import cache, { fetchCollectiveId } from '../../../../../server/lib/cache';
 import { TwoFactorAuthenticationHeader } from '../../../../../server/lib/two-factor-authentication/lib';
 import models from '../../../../../server/models';
 import {
+  fakeAccountingCategory,
   fakeActiveHost,
   fakeActivity,
   fakeCollective,
@@ -272,6 +273,129 @@ describe('server/graphql/v2/mutation/RootMutations', () => {
       expect(result.data.moveExpenses.length).to.equal(1);
       await recurringExpense.reload();
       expect(recurringExpense.CollectiveId).to.eq(collective.id);
+    });
+
+    it('clears accounting category when moving expense to a different host', async () => {
+      const sourceHost = await fakeHost();
+      const sourceCollective = await fakeCollective({ HostCollectiveId: sourceHost.id });
+      const accountingCategory = await fakeAccountingCategory({ CollectiveId: sourceHost.id, kind: 'EXPENSE' });
+      const destinationHost = await fakeHost();
+      const destinationCollective = await fakeCollective({ HostCollectiveId: destinationHost.id });
+
+      const expense = await fakeExpense({
+        CollectiveId: sourceCollective.id,
+        AccountingCategoryId: accountingCategory.id,
+      });
+
+      const result = await callMoveExpenseMutation(
+        { destinationAccount: { legacyId: destinationCollective.id }, expenses: [{ legacyId: expense.id }] },
+        rootUser,
+      );
+
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      await expense.reload();
+      expect(expense.AccountingCategoryId).to.be.null;
+    });
+
+    it('preserves accounting category when moving expense within the same host', async () => {
+      const host = await fakeHost();
+      const sourceCollective = await fakeCollective({ HostCollectiveId: host.id });
+      const destinationCollective = await fakeCollective({ HostCollectiveId: host.id });
+      const accountingCategory = await fakeAccountingCategory({ CollectiveId: host.id, kind: 'EXPENSE' });
+
+      const expense = await fakeExpense({
+        CollectiveId: sourceCollective.id,
+        AccountingCategoryId: accountingCategory.id,
+      });
+
+      const result = await callMoveExpenseMutation(
+        { destinationAccount: { legacyId: destinationCollective.id }, expenses: [{ legacyId: expense.id }] },
+        rootUser,
+      );
+
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      await expense.reload();
+      expect(expense.AccountingCategoryId).to.equal(accountingCategory.id);
+    });
+
+    it('only clears the accounting category of the expenses that change host in a mixed batch', async () => {
+      const destinationHost = await fakeHost();
+      const destinationCollective = await fakeCollective({ HostCollectiveId: destinationHost.id });
+      const sameHostCollective = await fakeCollective({ HostCollectiveId: destinationHost.id });
+      const sameHostCategory = await fakeAccountingCategory({ CollectiveId: destinationHost.id, kind: 'EXPENSE' });
+      const sameHostExpense = await fakeExpense({
+        CollectiveId: sameHostCollective.id,
+        AccountingCategoryId: sameHostCategory.id,
+      });
+
+      const otherHost = await fakeHost();
+      const otherHostCollective = await fakeCollective({ HostCollectiveId: otherHost.id });
+      const otherHostCategory = await fakeAccountingCategory({ CollectiveId: otherHost.id, kind: 'EXPENSE' });
+      const otherHostExpense = await fakeExpense({
+        CollectiveId: otherHostCollective.id,
+        AccountingCategoryId: otherHostCategory.id,
+      });
+
+      const result = await callMoveExpenseMutation(
+        {
+          destinationAccount: { legacyId: destinationCollective.id },
+          expenses: [{ legacyId: sameHostExpense.id }, { legacyId: otherHostExpense.id }],
+        },
+        rootUser,
+      );
+
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      await sameHostExpense.reload();
+      await otherHostExpense.reload();
+      expect(sameHostExpense.AccountingCategoryId).to.equal(sameHostCategory.id);
+      expect(otherHostExpense.AccountingCategoryId).to.be.null;
+    });
+
+    it('clears the accounting category when the destination has no host', async () => {
+      const sourceCollective = await fakeCollective({ HostCollectiveId: null });
+      const destinationCollective = await fakeCollective({ HostCollectiveId: null });
+      const accountingCategory = await fakeAccountingCategory({ kind: 'EXPENSE' });
+      const expense = await fakeExpense({
+        CollectiveId: sourceCollective.id,
+        AccountingCategoryId: accountingCategory.id,
+      });
+
+      const result = await callMoveExpenseMutation(
+        { destinationAccount: { legacyId: destinationCollective.id }, expenses: [{ legacyId: expense.id }] },
+        rootUser,
+      );
+
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      await expense.reload();
+      expect(expense.AccountingCategoryId).to.be.null;
+    });
+
+    it('records the cleared accounting category in the move activity', async () => {
+      const sourceHost = await fakeHost();
+      const sourceCollective = await fakeCollective({ HostCollectiveId: sourceHost.id });
+      const accountingCategory = await fakeAccountingCategory({ CollectiveId: sourceHost.id, kind: 'EXPENSE' });
+      const destinationHost = await fakeHost();
+      const destinationCollective = await fakeCollective({ HostCollectiveId: destinationHost.id });
+      const expense = await fakeExpense({
+        CollectiveId: sourceCollective.id,
+        AccountingCategoryId: accountingCategory.id,
+      });
+
+      const result = await callMoveExpenseMutation(
+        { destinationAccount: { legacyId: destinationCollective.id }, expenses: [{ legacyId: expense.id }] },
+        rootUser,
+      );
+
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      const activity = await models.Activity.findOne({
+        where: { ExpenseId: expense.id, type: ACTIVITY.COLLECTIVE_EXPENSE_MOVED },
+      });
+      expect(activity.data.previousAccountingCategoryId).to.equal(accountingCategory.id);
     });
   });
 
