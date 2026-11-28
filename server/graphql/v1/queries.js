@@ -10,7 +10,7 @@ import logger from '../../lib/logger';
 import { getConsolidatedInvoicesData } from '../../lib/pdf';
 import { assertCanSeeAccount } from '../../lib/private-accounts';
 import rawQueries from '../../lib/queries';
-import { searchCollectivesByEmail, searchCollectivesInDB } from '../../lib/sql-search';
+import { searchCollectivesByEmail, searchCollectivesInDBWithLazyTotal } from '../../lib/sql-search';
 import models, { Op, sequelize } from '../../models';
 import { isRemoteUserRoot } from '../common/scope-check';
 import { NotFound, Unauthorized } from '../errors';
@@ -529,7 +529,8 @@ const queries = {
         const [collectives, total] = await searchCollectivesByEmail(cleanTerm, req.remoteUser);
         return generateResults(collectives, total);
       } else {
-        const [collectives, total] = await searchCollectivesInDB(req, cleanTerm, offset, limit, {
+        // `total` is resolved by calling `getTotal`, so the count only runs when the field is requested
+        const { collectives, getTotal } = await searchCollectivesInDBWithLazyTotal(req, cleanTerm, offset, limit, {
           types,
           hostCollectiveIds,
           parentCollectiveIds,
@@ -541,7 +542,7 @@ const queries = {
           includeAllVendors,
           vendorVisibleToAccountIds,
         });
-        return generateResults(collectives, total);
+        return generateResults(collectives, getTotal);
       }
     },
   },

@@ -1,7 +1,9 @@
 import { expect } from 'chai';
 import gqlV1 from 'fake-tag';
 import { describe, it } from 'mocha';
+import sinon from 'sinon';
 
+import { sequelize } from '../../../../server/models';
 import { fakeActiveHost, fakeCollective, fakeUser, fakeVendor, randStr } from '../../../test-helpers/fake-data';
 import * as utils from '../../../utils';
 
@@ -58,6 +60,75 @@ describe('server/graphql/v1/search', () => {
     const result = await utils.graphqlQuery(collectiveSearchQuery, { term: commonKeyword, limit: 2, offset: 0 });
 
     expect(result.data.search.collectives.length).to.equal(2);
+    expect(result.data.search.total).to.equal(3);
+  });
+
+  describe('total', () => {
+    const isCountQuery = (query: unknown) =>
+      typeof query === 'string' && query.includes('SELECT COUNT(*)::int AS total');
+    let querySpy: sinon.SinonSpy;
+
+    beforeEach(() => {
+      querySpy = sinon.spy(sequelize, 'query');
+    });
+
+    afterEach(() => {
+      querySpy.restore();
+    });
+
+    it('is not counted when the field is not requested', async () => {
+      const query = gqlV1 /* GraphQL */ `
+        query CollectiveSearchWithoutTotal($term: String!) {
+          search(term: $term) {
+            collectives {
+              id
+            }
+          }
+        }
+      `;
+
+      const result = await utils.graphqlQuery(query, { term: commonKeyword });
+      expect(result.errors).to.not.exist;
+      expect(result.data.search.collectives).to.have.length(3);
+      expect(querySpy.getCalls().filter(call => isCountQuery(call.args[0]))).to.be.empty;
+    });
+
+    it('is counted once when requested', async () => {
+      const query = gqlV1 /* GraphQL */ `
+        query CollectiveSearchWithTotal($term: String!) {
+          search(term: $term, limit: 1) {
+            collectives {
+              id
+            }
+            total
+          }
+        }
+      `;
+
+      const result = await utils.graphqlQuery(query, { term: commonKeyword });
+      expect(result.errors).to.not.exist;
+      expect(result.data.search.collectives).to.have.length(1);
+      expect(result.data.search.total).to.equal(3);
+      expect(querySpy.getCalls().filter(call => isCountQuery(call.args[0]))).to.have.length(1);
+    });
+
+    it('is 1 for a search by public ID', async () => {
+      const query = gqlV1 /* GraphQL */ `
+        query CollectiveSearchByPublicId($term: String!) {
+          search(term: $term) {
+            collectives {
+              id
+            }
+            total
+          }
+        }
+      `;
+
+      const result = await utils.graphqlQuery(query, { term: collectives[0].publicId });
+      expect(result.errors).to.not.exist;
+      expect(result.data.search.collectives.map(c => c.id)).to.deep.eq([collectives[0].id]);
+      expect(result.data.search.total).to.equal(1);
+    });
   });
 
   describe('vendor WHERE-scope filter', () => {
