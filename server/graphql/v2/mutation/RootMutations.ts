@@ -337,7 +337,8 @@ export default {
   },
   moveExpenses: {
     type: new GraphQLNonNull(new GraphQLList(GraphQLExpense)),
-    description: '[Root only] A mutation to move expenses from one account to another',
+    description:
+      '[Root only] A mutation to move expenses from one account to another. Paid expenses can be moved with their transactions between accounts of the same Collective (with the same host and currency).',
     args: {
       expenses: {
         type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLExpenseReferenceInput))),
@@ -360,7 +361,7 @@ export default {
         throwIfMissing: true,
       });
 
-      return moveExpenses(req, expenses, destinationAccount);
+      return moveExpenses(req, expenses, destinationAccount, { moveTransactions: true });
     },
   },
   rootAnonymizeAccount: {
