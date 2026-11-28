@@ -9,7 +9,7 @@ import type { Request } from 'express';
 import express from 'express';
 import { Expression, RawBuilder, SelectQueryBuilder, sql, SqlBool } from 'kysely';
 import slugify from 'limax';
-import { isEmpty, isNil, isUndefined, toString, words } from 'lodash';
+import { isEmpty, isNil, isUndefined, once, toString, words } from 'lodash';
 import { QueryTypes } from 'sequelize';
 import isEmail from 'validator/lib/isEmail';
 
@@ -655,6 +655,40 @@ export const buildSearchCollectivesQuery = async (
     replacements,
     sortField: sortSubQuery.type,
   };
+};
+
+/**
+ * Search collectives directly in the DB, using a full-text query. The total count is only
+ * queried when `getTotal` is called, as many callers (e.g. the collective picker) never read it.
+ */
+export const searchCollectivesInDBWithLazyTotal = async (
+  req: express.Request,
+  term: string,
+  offset = 0,
+  limit = 100,
+  options: SearchCollectivesInDBOptions = {},
+): Promise<{ collectives: Collective[]; getTotal: () => Promise<number> }> => {
+  if (isEntityPublicId(term, EntityShortIdPrefix.Collective)) {
+    const collective = await models.Collective.findOne({
+      where: { publicId: term },
+    });
+    if (collective && (!collective.isPrivate || (await canSeePrivateAccount(req, collective)))) {
+      return { collectives: [collective], getTotal: async () => 1 };
+    }
+  }
+
+  const { pageSql, countSql, replacements } = await buildSearchCollectivesQuery(req, term, offset, limit, options);
+  const collectives = await sequelize.query(pageSql, { model: models.Collective, mapToModel: true, replacements });
+  const getTotal = once(async () => {
+    const countRow = await sequelize.query<{ total: number }>(countSql, {
+      type: QueryTypes.SELECT,
+      replacements,
+      plain: true,
+    });
+    return countRow.total;
+  });
+
+  return { collectives, getTotal };
 };
 
 /**
